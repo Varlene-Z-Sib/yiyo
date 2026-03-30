@@ -1,3 +1,10 @@
+.env
+*.env
+.env
+firebase_key.json
+frontend/yiyo_app/android/app/google-services.json
+__pycache__/
+*.pyc
 # Miscellaneous
 *.class
 *.log

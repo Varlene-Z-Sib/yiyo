@@ -1,0 +1,22 @@
+# ENV FILES
+.env
+*.env
+
+# Firebase keys
+firebase_key.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Node / Flutter
+node_modules/
+.build/
+.dart_tool/
+
+# Android
+*.keystore
+google-services.json
+
+# Misc
+.DS_Store
