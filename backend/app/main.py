@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from app.services.places_service import fetch_nightlife_places
+from google.cloud.firestore_v1.base_query import FieldFilter
+
 from app.firebase_config import db
+from app.services.places_service import fetch_nightlife_places
 
 app = FastAPI(title="YIYO Backend")
 
@@ -13,6 +15,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+COLLECTION_NAME = "venues_v2"
+
+
 @app.get("/")
 def root():
     return {"message": "YIYO Backend Running 🚀"}
@@ -23,33 +28,61 @@ def get_venues(
     lat: float = Query(...),
     lng: float = Query(...),
 ):
-    # 🔑 Use rounded location as cache key
-    location_key = f"{round(lat, 2)}_{round(lng, 2)}"
+    rounded_lat = round(lat, 2)
+    rounded_lng = round(lng, 2)
+    location_key = f"{rounded_lat}_{rounded_lng}"
 
-    # 1. CHECK FIRESTORE FIRST (FREE)
-    docs = db.collection("venues").where("location_key", "==", location_key).stream()
-    cached = [doc.to_dict() for doc in docs]
+    print(f"[DEBUG] location_key = {location_key}")
 
-    if cached:
+    # 1. Check Firestore cache first
+    docs = (
+        db.collection(COLLECTION_NAME)
+        .where(filter=FieldFilter("location_key", "==", location_key))
+        .stream()
+    )
+
+    cached_venues = [doc.to_dict() for doc in docs]
+
+    if cached_venues:
+        cached_venues.sort(
+            key=lambda v: (
+                -(float(v.get("relevance_score", 0) or 0)),
+                float(v.get("distance_km", 999) or 999),
+                -(float(v.get("rating", 0) or 0)),
+            )
+        )
+
         return {
             "source": "firestore_cache",
-            "count": len(cached),
-            "venues": cached
+            "count": len(cached_venues),
+            "venues": cached_venues,
         }
 
-    # 2. ONLY CALL GOOGLE IF NO CACHE
+    # 2. Only call Places if not cached
     venues = fetch_nightlife_places(lat, lng)
 
-    # 3. SAVE WITH UNIQUE ID (NO DUPLICATES)
+    saved_count = 0
+    skipped_count = 0
+
+    # 3. Save ranked venues to Firestore
     for venue in venues:
-        place_id = venue.get("place_id") + str(venue.get("lat"))  # fallback ID
+        try:
+            place_id = venue.get("place_id")
+            if not place_id:
+                skipped_count += 1
+                continue
 
-        venue["location_key"] = location_key
+            venue["location_key"] = location_key
 
-        db.collection("venues").document(place_id).set(venue)
+            db.collection(COLLECTION_NAME).document(place_id).set(venue)
+            saved_count += 1
+        except Exception as e:
+            print(f"[ERROR] Failed to save venue {venue.get('name')}: {e}")
 
     return {
         "source": "google_places",
         "count": len(venues),
-        "venues": venues
+        "saved_count": saved_count,
+        "skipped_count": skipped_count,
+        "venues": venues,
     }
