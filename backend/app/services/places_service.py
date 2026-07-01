@@ -10,13 +10,6 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 NEARBY_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
 TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
 
-# Keep this small so first-time uncached calls stay cheap.
-# This setup makes up to 4 Places requests for a brand-new area:
-#   1) night_club nearby
-#   2) bar nearby
-#   3) text search: lounge
-#   4) text search: piano bar
-# After that, Firestore cache handles repeat loads for the same area.
 MAX_RESULTS_RETURNED = 20
 
 
@@ -53,7 +46,7 @@ def _nearby_search(lat: float, lng: float, place_type: str, radius: int = 4000):
     return data.get("results", [])
 
 
-def _text_search(lat: float, lng: float, query: str, radius: int = 4000):
+def _text_search(query: str, lat: float, lng: float, radius: int = 4000):
     params = {
         "query": query,
         "location": f"{lat},{lng}",
@@ -139,28 +132,30 @@ def _is_irrelevant(venue: dict) -> bool:
         "piano",
         "cocktail",
         "roof",
+        "rooftop",
         "pub",
         "tavern",
         "shisanyama",
         "social",
         "vip",
+        "drama",
+        "lumo",
+        "liv",
     ]
 
-    # If the place has obviously irrelevant types and also doesn't sound nightlife-related, reject it.
     if any(t in bad_types for t in types) and not _contains_any(name, nightlife_keywords):
         return True
 
     return False
 
 
-def _score_venue(venue: dict) -> float:
+def _score_venue(venue: dict, query: str | None = None) -> float:
     score = 0.0
     name = venue["name"].lower()
     types = [t.lower() for t in venue.get("types", [])]
     rating = float(venue.get("rating", 0) or 0)
     distance_km = float(venue.get("distance_km", 999))
 
-    # Type boosts
     if "night_club" in types:
         score += 45
     if "bar" in types:
@@ -168,7 +163,6 @@ def _score_venue(venue: dict) -> float:
     if "restaurant" in types:
         score += 4
 
-    # Name boosts
     keyword_boosts = {
         "club": 22,
         "lounge": 25,
@@ -181,13 +175,15 @@ def _score_venue(venue: dict) -> float:
         "tavern": 8,
         "shisanyama": 10,
         "vip": 8,
+        "drama": 18,
+        "lumo": 18,
+        "liv": 18,
     }
 
     for keyword, boost in keyword_boosts.items():
         if keyword in name:
             score += boost
 
-    # Penalties for noisy result types
     noisy_penalties = {
         "store": 25,
         "gym": 50,
@@ -204,10 +200,8 @@ def _score_venue(venue: dict) -> float:
         if noisy_type in types:
             score -= penalty
 
-    # Rating boost
     score += rating * 6
 
-    # Distance bonus (closer gets more points)
     if distance_km <= 1:
         score += 18
     elif distance_km <= 3:
@@ -217,21 +211,28 @@ def _score_venue(venue: dict) -> float:
     else:
         score -= 4
 
+    if query:
+        q = query.strip().lower()
+        if q == name:
+            score += 50
+        elif q in name:
+            score += 30
+        else:
+            tokens = [t for t in q.split() if t]
+            token_hits = sum(1 for t in tokens if t in name)
+            score += token_hits * 8
+
     return round(score, 2)
 
 
 def fetch_nightlife_places(lat: float, lng: float):
     raw_results = []
 
-    # Nearby Search: strong for clubs/bars
     raw_results.extend(_nearby_search(lat, lng, "night_club"))
     raw_results.extend(_nearby_search(lat, lng, "bar"))
+    raw_results.extend(_text_search("lounge", lat, lng))
+    raw_results.extend(_text_search("piano bar", lat, lng))
 
-    # Text Search: helps catch names like "Piano Bar", "Lounge", etc.
-    raw_results.extend(_text_search(lat, lng, "lounge"))
-    raw_results.extend(_text_search(lat, lng, "piano bar"))
-
-    # Normalize + dedupe by place_id
     merged = {}
     for place in raw_results:
         place_id = place.get("place_id")
@@ -240,7 +241,6 @@ def fetch_nightlife_places(lat: float, lng: float):
 
         normalized = _normalize_place(place, lat, lng)
 
-        # Keep the better version if duplicate appears
         existing = merged.get(place_id)
         if existing is None:
             merged[place_id] = normalized
@@ -251,18 +251,12 @@ def fetch_nightlife_places(lat: float, lng: float):
                 merged[place_id] = normalized
 
     venues = list(merged.values())
-
-    # Filter junk
     venues = [venue for venue in venues if not _is_irrelevant(venue)]
 
-    # Score venues
     for venue in venues:
         venue["relevance_score"] = _score_venue(venue)
 
-    # Hard cut: remove very weak matches
     venues = [venue for venue in venues if venue["relevance_score"] >= 18]
-
-    # Sort by relevance first, then distance, then rating
     venues.sort(
         key=lambda v: (
             -v["relevance_score"],
@@ -272,5 +266,31 @@ def fetch_nightlife_places(lat: float, lng: float):
     )
 
     print(f"[DEBUG] Final filtered venues: {len(venues)}")
+    return venues[:MAX_RESULTS_RETURNED]
+
+
+def search_places_by_text(query: str, lat: float, lng: float):
+    raw_results = _text_search(query, lat, lng)
+
+    merged = {}
+    for place in raw_results:
+        place_id = place.get("place_id")
+        if not place_id:
+            continue
+
+        normalized = _normalize_place(place, lat, lng)
+        normalized["relevance_score"] = _score_venue(normalized, query=query)
+
+        if not _is_irrelevant(normalized):
+            merged[place_id] = normalized
+
+    venues = list(merged.values())
+    venues.sort(
+        key=lambda v: (
+            -v["relevance_score"],
+            v["distance_km"],
+            -(float(v.get("rating", 0) or 0)),
+        )
+    )
 
     return venues[:MAX_RESULTS_RETURNED]
