@@ -20,6 +20,7 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
   bool _isLoading = true;
   String _yiyoBadge = "MID";
   List<VibeReport> _reports = [];
+  int _reportCount = 0;
   String? _error;
 
   @override
@@ -32,12 +33,18 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
     try {
       final data = await ApiService.getVenueReports(widget.venue.id);
 
+      if (!mounted) return;
+
       setState(() {
         _yiyoBadge = (data["yiyo_badge"] ?? "MID").toString();
-        _reports = (data["reports"] as List<VibeReport>);
+        _reportCount = (data["count"] as num?)?.toInt() ?? 0;
+        _reports = data["reports"] as List<VibeReport>;
+        _error = null;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
+
       setState(() {
         _error = "Failed to load venue reports";
         _isLoading = false;
@@ -64,96 +71,288 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
       appBar: AppBar(
         title: Text(venue.name),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(child: Text(_error!))
-              : SingleChildScrollView(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              venue.name,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text("⭐ ${venue.rating.toStringAsFixed(1)}"),
+
+            const SizedBox(height: 6),
+
+            Text(venue.address),
+
+            if (venue.distanceKm != null) ...[
+              const SizedBox(height: 6),
+              Text("${venue.distanceKm!.toStringAsFixed(1)} km away"),
+            ],
+
+            const SizedBox(height: 24),
+
+            const Text(
+              "Current vibe",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            if (_isLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_error != null)
+              Card(
+                child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        venue.name,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      Text(_error!),
                       const SizedBox(height: 8),
-                      Text("⭐ ${venue.rating.toStringAsFixed(1)}"),
-                      const SizedBox(height: 6),
-                      Text(venue.address),
-                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _isLoading = true;
+                            _error = null;
+                          });
 
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _badgeColor(_yiyoBadge),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          _yiyoBadge,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
+                          _loadReports();
+                        },
+                        child: const Text("Try again"),
                       ),
-
-                      const SizedBox(height: 20),
-                      const Text(
-                        "Latest Vibe Reports",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      if (_reports.isEmpty)
-                        const Text("No reports yet for this venue.")
-                      else
-                        ..._reports.map((report) {
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            child: Padding(
-                              padding: const EdgeInsets.all(14),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "${report.yiyoStatus} • ${report.crowdLevel} • ${report.safetyLevel}",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text("Music: ${report.musicType}"),
-                                  Text("Queue: ${report.queueLength}"),
-                                  if (report.comment.trim().isNotEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Text(report.comment),
-                                  ],
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    report.reportedAt,
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }),
                     ],
                   ),
                 ),
+              )
+            else
+              _buildCurrentVibe(),
+
+            const SizedBox(height: 24),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Recent community updates",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (!_isLoading && _error == null)
+                  Text(
+                    "$_reportCount report${_reportCount == 1 ? "" : "s"}",
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 13,
+                    ),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            if (!_isLoading && _error == null)
+              if (_reports.isEmpty)
+                const Text(
+                  "No reports yet. Community updates will appear here.",
+                )
+              else
+                ..._reports.map(_buildReportCard),
+          ],
+        ),
+      ), 
+   );
+  }
+  
+  String _displayValue(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? "Unknown" : trimmed;
+  }
+
+  Widget _buildCurrentVibe() {
+    final latestReport = _reports.isNotEmpty ? _reports.first : null;
+
+    if (latestReport == null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: _badgeColor(_yiyoBadge),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _yiyoBadge,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "No community vibe reports yet.",
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _badgeColor(_yiyoBadge),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _yiyoBadge,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Text(
+                  latestReport.freshnessLabel(),
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            Text(
+              "Crowd: ${_displayValue(latestReport.crowdLevel)}",
+            ),
+            const SizedBox(height: 6),
+
+            Text(
+              "Safety: ${_displayValue(latestReport.safetyLevel)}",
+            ),
+            const SizedBox(height: 6),
+
+            Text(
+              "Music: ${_displayValue(latestReport.musicType)}",
+            ),
+            const SizedBox(height: 6),
+
+            Text(
+              "Queue: ${_displayValue(latestReport.queueLength)}",
+            ),
+
+            if (latestReport.parkingAvailability.trim().isNotEmpty ||
+                latestReport.parkingSafety.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                "Parking: "
+                "${_displayValue(latestReport.parkingAvailability)}"
+                " • "
+                "${_displayValue(latestReport.parkingSafety)}",
+              ),
+            ],
+
+            if (latestReport.parkingNote.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(latestReport.parkingNote),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReportCard(VibeReport report) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "${_displayValue(report.yiyoStatus)}"
+              " • ${_displayValue(report.crowdLevel)}"
+              " • ${_displayValue(report.safetyLevel)}",
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            Text(
+              "Music: ${_displayValue(report.musicType)}",
+            ),
+
+            Text(
+              "Queue: ${_displayValue(report.queueLength)}",
+            ),
+
+            if (report.parkingAvailability.trim().isNotEmpty)
+              Text(
+                "Parking: "
+                "${_displayValue(report.parkingAvailability)}"
+                " • "
+                "${_displayValue(report.parkingSafety)}",
+              ),
+
+            if (report.comment.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(report.comment),
+            ],
+
+            const SizedBox(height: 8),
+
+            Text(
+              report.freshnessLabel(),
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
