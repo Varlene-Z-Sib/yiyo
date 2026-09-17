@@ -9,7 +9,7 @@ from firebase_admin import auth as firebase_auth
 
 
 from app.firebase_config import db
-from app.services.places_service import fetch_nightlife_places, search_places_by_text
+from app.services.places_service import fetch_nightlife_places, search_places_by_text, apply_discovery_context
 from app.services.yiyo_logic import (
     location_key_for,
     contributor_level_from_count,
@@ -74,20 +74,33 @@ def get_current_user(authorization: Optional[str] = Header(default=None)):
 
 def save_venues_to_firestore(venues: list[dict]):
     saved = 0
+    now = datetime.now(timezone.utc)
+
     for venue in venues:
         try:
             place_id = venue.get("place_id")
             if not place_id:
                 continue
 
-            venue["location_key"] = location_key_for(venue["lat"], venue["lng"])
-            if "yiyo_badge" not in venue:
-                venue["yiyo_badge"] = get_venue_yiyo_badge(place_id)
+            record = VenueRecord(
+                **venue,
+                google_last_refreshed_at=now.isoformat(),
+                google_last_refreshed_at_unix=int(now.timestamp()),
+            )
 
-            db.collection(VENUES_COLLECTION).document(place_id).set(venue, merge=True)
+            db.collection(VENUES_COLLECTION).document(place_id).set(
+                record.model_dump(),
+                merge=False,
+            )
+
             saved += 1
+
         except Exception as e:
-            print(f"[ERROR] Failed to save venue {venue.get('name')}: {e}")
+            print(
+                f"[ERROR] Failed to save venue "
+                f"{venue.get('name')}: {e}"
+            )
+
     return saved
 
 def save_area_cache(
@@ -158,6 +171,15 @@ def load_cached_area_venues(
         doc.to_dict() | {"id": doc.id}
         for doc in docs
         if doc.exists
+    ]
+
+    venues = [
+        apply_discovery_context(
+            venue,
+            lat,
+            lng,
+        )
+        for venue in venues
     ]
 
     for venue in venues:
