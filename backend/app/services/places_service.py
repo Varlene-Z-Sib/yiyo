@@ -224,6 +224,24 @@ def _score_venue(venue: dict, query: str | None = None) -> float:
 
     return round(score, 2)
 
+def apply_discovery_context(
+    venue: dict,
+    origin_lat: float,
+    origin_lng: float,
+) -> dict:
+    result = dict(venue)
+
+    distance_km = _haversine_km(
+        origin_lat,
+        origin_lng,
+        float(result["lat"]),
+        float(result["lng"]),
+    )
+
+    result["distance_km"] = round(distance_km, 2)
+    result["relevance_score"] = _score_venue(result)
+
+    return result
 
 def fetch_nightlife_places(lat: float, lng: float):
     raw_results = []

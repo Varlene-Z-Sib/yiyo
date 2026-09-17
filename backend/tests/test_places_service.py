@@ -5,6 +5,7 @@ from app.services.places_service import (
     _normalize_place,
     _is_irrelevant,
     _score_venue,
+    apply_discovery_context,
 )
 
 
@@ -98,3 +99,45 @@ def test_exact_search_match_gets_score_boost():
     search_score = _score_venue(venue, query="Drama Bar")
 
     assert search_score > normal_score
+
+def test_apply_discovery_context_adds_dynamic_fields():
+    venue = {
+        "place_id": "venue_123",
+        "name": "Test Club",
+        "lat": -26.2041,
+        "lng": 28.0473,
+        "rating": 4.5,
+        "types": ["night_club"],
+    }
+
+    result = apply_discovery_context(
+        venue,
+        -26.2041,
+        28.0473,
+    )
+
+    assert result["distance_km"] == 0.0
+    assert "relevance_score" in result
+    assert result["relevance_score"] > 0
+
+
+def test_apply_discovery_context_does_not_mutate_venue():
+    venue = {
+        "place_id": "venue_123",
+        "name": "Test Club",
+        "lat": -26.2041,
+        "lng": 28.0473,
+        "rating": 4.5,
+        "types": ["night_club"],
+    }
+
+    apply_discovery_context(
+        venue,
+        -26.2041,
+        28.0473,
+    )
+
+    assert "distance_km" not in venue
+    assert "relevance_score" not in venue
+
+    

@@ -125,6 +125,7 @@ class ApiService {
         .toList();
 
     return {
+      "count": data["count"] ?? reports.length,
       "yiyo_badge": data["yiyo_badge"] ?? "MID",
       "reports": reports,
     };
