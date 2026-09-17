@@ -1,0 +1,9 @@
+# Verified with Python 3.13.3
+
+fastapi==0.115.12
+uvicorn==0.34.3
+firebase-admin==7.3.0
+google-cloud-firestore==2.26.0
+requests==2.32.3
+python-dotenv==1.1.0
+pydantic==2.11.5
