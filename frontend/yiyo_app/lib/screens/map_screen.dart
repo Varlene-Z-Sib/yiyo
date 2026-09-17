@@ -117,7 +117,9 @@ class _MapScreenState extends State<MapScreen> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       _currentLocation = LatLng(position.latitude, position.longitude);
@@ -222,10 +224,11 @@ class _MapScreenState extends State<MapScreen> {
         _errorMessage = "Failed to load venues: $e";
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -250,10 +253,11 @@ class _MapScreenState extends State<MapScreen> {
         _errorMessage = "Failed to load YIYO venues: $e";
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -317,10 +321,11 @@ class _MapScreenState extends State<MapScreen> {
         _errorMessage = "Search failed: $e";
       });
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -460,12 +465,13 @@ class _MapScreenState extends State<MapScreen> {
 
               await ApiService.submitVibeReport(report);
 
-              if (!Navigator.of(sheetContext).mounted) return;
+              if (!sheetContext.mounted) return;
               Navigator.of(sheetContext).pop(true);
-            } catch (e) {
-              if (!mounted) return;
 
-              ScaffoldMessenger.of(parentContext).showSnackBar(
+            } catch (e) {
+              if (!mounted || !sheetContext.mounted) return;
+
+              ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text("Failed to submit report: $e"),
                 ),
@@ -699,7 +705,7 @@ class _MapScreenState extends State<MapScreen> {
     await _loadCurrentView();
 
     if (!mounted) return;
-    ScaffoldMessenger.of(parentContext).showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("Vibe report submitted"),
       ),
@@ -901,7 +907,7 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                       child: Material(
                         color: isSelected
-                            ? Colors.white.withOpacity(0.08)
+                            ? Colors.white.withValues(alpha: 0.08)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(14),
                         child: ListTile(

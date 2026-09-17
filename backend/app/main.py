@@ -7,8 +7,15 @@ from pydantic import BaseModel, Field
 from google.cloud.firestore_v1.base_query import FieldFilter
 from firebase_admin import auth as firebase_auth
 
+
 from app.firebase_config import db
 from app.services.places_service import fetch_nightlife_places, search_places_by_text
+from app.services.yiyo_logic import (
+    location_key_for,
+    contributor_level_from_count,
+    get_yiyo_badge_from_reports,
+    is_cache_fresh,
+)
 
 app = FastAPI(title="YIYO Backend")
 
@@ -24,6 +31,8 @@ VENUES_COLLECTION = "venues_v2"
 REPORTS_COLLECTION = "vibe_reports"
 USERS_COLLECTION = "users"
 REPORT_COOLDOWN_SECONDS = 300  # 5 min per user per venue
+VENUE_AREA_CACHE_COLLECTION = "venue_area_cache"
+VENUE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 
 
 class VibeReportCreate(BaseModel):
@@ -42,19 +51,6 @@ class VibeReportCreate(BaseModel):
     comment: Optional[str] = ""
     reported_at: Optional[str] = None
 
-
-def location_key_for(lat: float, lng: float) -> str:
-    return f"{round(lat, 2)}_{round(lng, 2)}"
-
-
-def contributor_level_from_count(report_count: int) -> str:
-    if report_count >= 50:
-        return "Legend"
-    if report_count >= 20:
-        return "Scout"
-    if report_count >= 5:
-        return "Active"
-    return "Rookie"
 
 
 def get_current_user(authorization: Optional[str] = Header(default=None)):
@@ -94,17 +90,75 @@ def save_venues_to_firestore(venues: list[dict]):
             print(f"[ERROR] Failed to save venue {venue.get('name')}: {e}")
     return saved
 
-
-def load_cached_area_venues(lat: float, lng: float) -> list[dict]:
+def save_area_cache(
+    lat: float,
+    lng: float,
+    venues: list[dict],
+):
     location_key = location_key_for(lat, lng)
+    now = datetime.now(timezone.utc)
 
-    docs = (
-        db.collection(VENUES_COLLECTION)
-        .where(filter=FieldFilter("location_key", "==", location_key))
-        .stream()
+    venue_ids = []
+
+    for venue in venues:
+        venue_id = venue.get("place_id") or venue.get("id")
+
+        if venue_id and venue_id not in venue_ids:
+            venue_ids.append(venue_id)
+
+    db.collection(VENUE_AREA_CACHE_COLLECTION).document(location_key).set(
+        {
+            "location_key": location_key,
+            "venue_ids": venue_ids,
+            "last_refreshed_at_unix": int(now.timestamp()),
+            "last_refreshed_at": now.isoformat(),
+        },
+        merge=True,
     )
 
-    venues = [doc.to_dict() | {"id": doc.id} for doc in docs]
+def load_cached_area_venues(
+    lat: float,
+    lng: float,
+) -> Optional[list[dict]]:
+    location_key = location_key_for(lat, lng)
+
+    area_snapshot = (
+        db.collection(VENUE_AREA_CACHE_COLLECTION)
+        .document(location_key)
+        .get()
+    )
+
+    if not area_snapshot.exists:
+        return None
+
+    area_data = area_snapshot.to_dict() or {}
+
+    now_unix = int(datetime.now(timezone.utc).timestamp())
+
+    if not is_cache_fresh(
+        area_data.get("last_refreshed_at_unix"),
+        now_unix,
+        VENUE_CACHE_TTL_SECONDS,
+    ):
+        return None
+
+    venue_ids = area_data.get("venue_ids", [])
+
+    if not venue_ids:
+        return []
+
+    venue_refs = [
+        db.collection(VENUES_COLLECTION).document(venue_id)
+        for venue_id in venue_ids
+    ]
+
+    docs = db.get_all(venue_refs)
+
+    venues = [
+        doc.to_dict() | {"id": doc.id}
+        for doc in docs
+        if doc.exists
+    ]
 
     for venue in venues:
         venue["yiyo_badge"] = get_venue_yiyo_badge(
@@ -122,16 +176,24 @@ def load_cached_area_venues(lat: float, lng: float) -> list[dict]:
     return venues
 
 
-def get_or_build_area_venues(lat: float, lng: float) -> tuple[str, list[dict]]:
+def get_or_build_area_venues(
+    lat: float,
+    lng: float,
+) -> tuple[str, list[dict]]:
     cached = load_cached_area_venues(lat, lng)
-    if cached:
+
+    if cached is not None:
         return "firestore_cache", cached
 
     venues = fetch_nightlife_places(lat, lng)
+
     save_venues_to_firestore(venues)
+    save_area_cache(lat, lng, venues)
 
     for venue in venues:
-        venue["yiyo_badge"] = get_venue_yiyo_badge(venue.get("place_id"))
+        venue["yiyo_badge"] = get_venue_yiyo_badge(
+            venue.get("place_id")
+        )
 
     return "google_places", venues
 
@@ -171,66 +233,6 @@ def get_venue_yiyo_badge(venue_id: Optional[str]) -> str:
     return get_yiyo_badge_from_reports(reports[:12])
 
 
-def get_yiyo_badge_from_reports(reports: list[dict]) -> str:
-    if not reports:
-        return "MID"
-
-    total_score = 0.0
-    now = datetime.now(timezone.utc)
-
-    for report in reports:
-        report_score = 0.0
-
-        yiyo_status = str(report.get("yiyo_status", "")).strip().lower()
-        if yiyo_status == "yes definitely":
-            report_score += 3
-        elif yiyo_status == "kind of":
-            report_score += 1
-        elif yiyo_status == "no":
-            report_score -= 3
-
-        crowd_level = str(report.get("crowd_level", "")).strip().lower()
-        if crowd_level == "packed":
-            report_score += 2
-        elif crowd_level == "busy":
-            report_score += 1
-        elif crowd_level == "chill":
-            report_score += 0
-        elif crowd_level == "dead":
-            report_score -= 2
-
-        safety_level = str(report.get("safety_level", "")).strip().lower()
-        if safety_level == "safe":
-            report_score += 2
-        elif safety_level == "okay":
-            report_score += 0
-        elif safety_level == "sketchy":
-            report_score -= 2
-        elif safety_level == "unsafe":
-            report_score -= 4
-
-        created_at_unix = report.get("created_at_unix", 0)
-        age_hours = 999.0
-
-        if created_at_unix:
-            report_time = datetime.fromtimestamp(created_at_unix, tz=timezone.utc)
-            age_hours = (now - report_time).total_seconds() / 3600
-
-        if age_hours <= 3:
-            weight = 1.0
-        elif age_hours <= 12:
-            weight = 0.7
-        else:
-            weight = 0.4
-
-        total_score += report_score * weight
-
-    if total_score >= 4:
-        return "YIYO"
-    elif total_score <= -2:
-        return "NOT YIYO"
-    else:
-        return "MID"
 
 
 def update_user_report_stats(uid: str):
@@ -332,7 +334,7 @@ def search_venues(
     if not query:
         raise HTTPException(status_code=400, detail="Query is required")
 
-    cached_area_venues = load_cached_area_venues(lat, lng)
+    cached_area_venues = load_cached_area_venues(lat, lng) or []
     matched_cached = []
     for venue in cached_area_venues:
         match_score = score_cached_match(venue, query)
@@ -374,6 +376,12 @@ def search_venues(
     if enrich_area and best_match:
         enriched = fetch_nightlife_places(best_match["lat"], best_match["lng"])
         save_venues_to_firestore(enriched)
+
+        save_area_cache(
+            best_match["lat"],
+            best_match["lng"],
+            enriched,
+        )
 
         seen = set()
         merged_related = []
@@ -473,10 +481,25 @@ def get_reports_for_venue(venue_id: str):
 
         yiyo_badge = get_yiyo_badge_from_reports(reports[:12])
 
+        public_reports = []
+
+        for report in reports[:20]:
+            public_report = {
+                key: value
+                for key, value in report.items()
+                if key not in {
+                    "uid",
+                    "user_email",
+                    "user_display_name",
+                }
+            }
+
+            public_reports.append(public_report)
+
         return {
             "count": len(reports),
             "yiyo_badge": yiyo_badge,
-            "reports": reports[:20],
+            "reports": public_reports,
         }
 
     except Exception as e:
