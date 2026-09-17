@@ -51,6 +51,8 @@ class _AuthScreenState extends State<AuthScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Auth failed: $e")),
       );
