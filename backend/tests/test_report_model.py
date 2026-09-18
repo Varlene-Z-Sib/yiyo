@@ -1,8 +1,10 @@
 import pytest
 from pydantic import ValidationError
 
-from app.models.report_model import VibeReportCreate
-
+from app.models.report_model import (
+    ReportFlagCreate,
+    VibeReportCreate,
+)
 
 def valid_report_data():
     return {
@@ -78,3 +80,34 @@ def test_string_fields_strip_outer_whitespace():
 
     assert report.venue_name == "Test Lounge"
     assert report.comment == "Good energy"
+
+def test_client_cannot_set_moderation_status():
+    data = valid_report_data()
+
+    data["status"] = "removed"
+
+    with pytest.raises(ValidationError):
+        VibeReportCreate(**data)
+
+def test_valid_report_flag_is_accepted():
+    flag = ReportFlagCreate(
+        reason="false_information",
+        details="The venue was actually closed.",
+    )
+
+    assert flag.reason == "false_information"
+
+
+def test_invalid_report_flag_reason_is_rejected():
+    with pytest.raises(ValidationError):
+        ReportFlagCreate(
+            reason="I just dislike this person",
+        )
+
+
+def test_report_flag_details_are_limited():
+    with pytest.raises(ValidationError):
+        ReportFlagCreate(
+            reason="other",
+            details="x" * 501,
+        )

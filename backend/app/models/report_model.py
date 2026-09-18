@@ -50,6 +50,14 @@ ParkingSafety = Literal[
     "Unsafe",
 ]
 
+ReportFlagReason = Literal[
+    "false_information",
+    "spam",
+    "abusive_content",
+    "safety_concern",
+    "other",
+]
+
 
 class VibeReportCreate(BaseModel):
     model_config = ConfigDict(
@@ -86,9 +94,23 @@ class VibeReportCreate(BaseModel):
         max_length=500,
     )
 
-    # Kept for compatibility with the current Flutter request.
-    # The backend will use server time as the authoritative time.
+    # Kept for compatibility with Flutter.
+    # The backend uses server time as authoritative.
     reported_at: str | None = Field(
         default=None,
         max_length=64,
+    )
+
+
+class ReportFlagCreate(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    reason: ReportFlagReason
+
+    details: str = Field(
+        default="",
+        max_length=500,
     )
