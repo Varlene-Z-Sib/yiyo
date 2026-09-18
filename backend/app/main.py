@@ -9,6 +9,9 @@ from app.services.user_service import (
     get_user_contributions,
     get_user_profile,
 )
+from app.services.vibe_summary_service import (
+    build_current_vibe_summary,
+)
 from app.firebase_config import db
 from app.models.report_model import (
     ReportFlagCreate,
@@ -1072,6 +1075,11 @@ def get_reports_for_venue(
                 active_reports[:12]
             )
         )
+        summary = (
+            build_current_vibe_summary(
+                active_reports
+            )
+        )
 
         public_reports = []
 
@@ -1096,12 +1104,17 @@ def get_reports_for_venue(
         return {
             "count":
                 len(active_reports),
+
             "yiyo_badge":
                 yiyo_badge,
+
+            "summary":
+                summary.model_dump(),
+
             "reports":
                 public_reports,
         }
-
+    
     except Exception as e:
         print(
             "[ERROR] Failed to fetch reports "
