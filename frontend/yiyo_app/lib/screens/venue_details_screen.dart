@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/venue.dart';
 import '../models/vibe_report.dart';
 import '../services/api_service.dart';
+import '../widgets/report_flag_sheet.dart';
 import '../widgets/vibe_report_sheet.dart';
 
-class VenueDetailsScreen extends StatefulWidget {
+class VenueDetailsScreen
+    extends StatefulWidget {
   final Venue venue;
 
   const VenueDetailsScreen({
@@ -49,7 +51,8 @@ class _VenueDetailsScreenState
       }
 
       final reports =
-          data["reports"] as List<VibeReport>? ??
+          data["reports"]
+                  as List<VibeReport>? ??
               [];
 
       setState(() {
@@ -58,7 +61,8 @@ class _VenueDetailsScreenState
                 .toString();
 
         _reportCount =
-            (data["count"] as num?)?.toInt() ??
+            (data["count"] as num?)
+                    ?.toInt() ??
                 reports.length;
 
         _reports = reports;
@@ -89,7 +93,8 @@ class _VenueDetailsScreenState
       venue: widget.venue,
     );
 
-    if (submitted != true || !mounted) {
+    if (submitted != true ||
+        !mounted) {
       return;
     }
 
@@ -104,7 +109,8 @@ class _VenueDetailsScreenState
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       const SnackBar(
         content: Text(
           "Vibe report submitted",
@@ -113,7 +119,45 @@ class _VenueDetailsScreenState
     );
   }
 
-  Color _badgeColor(String badge) {
+  Future<void> _openReportFlagSheet(
+    VibeReport report,
+  ) async {
+    if (report.id.trim().isEmpty) {
+      return;
+    }
+
+    final submitted =
+        await showReportFlagSheet(
+      context: context,
+      reportId: report.id,
+    );
+
+    if (submitted != true ||
+        !mounted) {
+      return;
+    }
+
+    await _loadReports();
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          "Thanks. "
+          "This update has been "
+          "reported for review.",
+        ),
+      ),
+    );
+  }
+
+  Color _badgeColor(
+    String badge,
+  ) {
     switch (badge) {
       case "YIYO":
         return Colors.green;
@@ -126,15 +170,19 @@ class _VenueDetailsScreenState
     }
   }
 
-  String _displayValue(String value) {
-    final trimmed = value.trim();
+  String _displayValue(
+    String value,
+  ) {
+    final trimmed =
+        value.trim();
 
     return trimmed.isEmpty
         ? "Unknown"
         : trimmed;
   }
 
-  VibeReport? _latestCurrentReport() {
+  VibeReport?
+      _latestCurrentReport() {
     for (final report in _reports) {
       if (report.isCurrent()) {
         return report;
@@ -145,8 +193,11 @@ class _VenueDetailsScreenState
   }
 
   @override
-  Widget build(BuildContext context) {
-    final venue = widget.venue;
+  Widget build(
+    BuildContext context,
+  ) {
+    final venue =
+        widget.venue;
 
     return Scaffold(
       appBar: AppBar(
@@ -154,16 +205,21 @@ class _VenueDetailsScreenState
           venue.name,
         ),
       ),
-      body: SingleChildScrollView(
+      body:
+          SingleChildScrollView(
         padding:
-            const EdgeInsets.all(16),
+            const EdgeInsets.all(
+          16,
+        ),
         child: Column(
           crossAxisAlignment:
-              CrossAxisAlignment.start,
+              CrossAxisAlignment
+                  .start,
           children: [
             Text(
               venue.name,
-              style: const TextStyle(
+              style:
+                  const TextStyle(
                 fontSize: 24,
                 fontWeight:
                     FontWeight.bold,
@@ -187,7 +243,8 @@ class _VenueDetailsScreenState
               venue.address,
             ),
 
-            if (venue.distanceKm != null) ...[
+            if (venue.distanceKm !=
+                null) ...[
               const SizedBox(
                 height: 6,
               ),
@@ -204,7 +261,8 @@ class _VenueDetailsScreenState
 
             const Text(
               "Current vibe",
-              style: TextStyle(
+              style:
+                  TextStyle(
                 fontSize: 20,
                 fontWeight:
                     FontWeight.bold,
@@ -219,7 +277,9 @@ class _VenueDetailsScreenState
               const Center(
                 child: Padding(
                   padding:
-                      EdgeInsets.all(24),
+                      EdgeInsets.all(
+                    24,
+                  ),
                   child:
                       CircularProgressIndicator(),
                 ),
@@ -234,12 +294,15 @@ class _VenueDetailsScreenState
             ),
 
             SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
+              width:
+                  double.infinity,
+              child:
+                  ElevatedButton.icon(
                 onPressed:
                     _openVibeReportSheet,
-                icon:
-                    const Icon(Icons.bolt),
+                icon: const Icon(
+                  Icons.bolt,
+                ),
                 label: const Text(
                   "Update the vibe",
                 ),
@@ -258,10 +321,12 @@ class _VenueDetailsScreenState
                 const Expanded(
                   child: Text(
                     "Community updates",
-                    style: TextStyle(
+                    style:
+                        TextStyle(
                       fontSize: 18,
                       fontWeight:
-                          FontWeight.bold,
+                          FontWeight
+                              .bold,
                     ),
                   ),
                 ),
@@ -272,9 +337,10 @@ class _VenueDetailsScreenState
                     "$_reportCount "
                     "report"
                     "${_reportCount == 1 ? "" : "s"}",
-                    style: TextStyle(
-                      color:
-                          Colors.grey[600],
+                    style:
+                        TextStyle(
+                      color: Colors
+                          .grey[600],
                       fontSize: 13,
                     ),
                   ),
@@ -290,8 +356,8 @@ class _VenueDetailsScreenState
               if (_reports.isEmpty)
                 const Text(
                   "No reports yet. "
-                  "Be the first to update "
-                  "this venue.",
+                  "Be the first to "
+                  "update this venue.",
                 )
               else
                 ..._reports.map(
@@ -307,10 +373,13 @@ class _VenueDetailsScreenState
     return Card(
       child: Padding(
         padding:
-            const EdgeInsets.all(16),
+            const EdgeInsets.all(
+          16,
+        ),
         child: Column(
           crossAxisAlignment:
-              CrossAxisAlignment.start,
+              CrossAxisAlignment
+                  .start,
           children: [
             Text(
               _error!,
@@ -323,7 +392,9 @@ class _VenueDetailsScreenState
             TextButton(
               onPressed: () {
                 setState(() {
-                  _isLoading = true;
+                  _isLoading =
+                      true;
+
                   _error = null;
                 });
 
@@ -347,31 +418,42 @@ class _VenueDetailsScreenState
       return Card(
         child: Padding(
           padding:
-              const EdgeInsets.all(16),
+              const EdgeInsets.all(
+            16,
+          ),
           child: Column(
             crossAxisAlignment:
-                CrossAxisAlignment.start,
+                CrossAxisAlignment
+                    .start,
             children: [
               Container(
                 padding:
-                    const EdgeInsets.symmetric(
+                    const EdgeInsets
+                        .symmetric(
                   horizontal: 12,
                   vertical: 8,
                 ),
-                decoration: BoxDecoration(
+                decoration:
+                    BoxDecoration(
                   color:
-                      _badgeColor(_yiyoBadge),
+                      _badgeColor(
+                    _yiyoBadge,
+                  ),
                   borderRadius:
-                      BorderRadius.circular(
+                      BorderRadius
+                          .circular(
                     12,
                   ),
                 ),
                 child: Text(
                   _yiyoBadge,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
                     fontWeight:
-                        FontWeight.bold,
+                        FontWeight
+                            .bold,
                   ),
                 ),
               ),
@@ -381,9 +463,11 @@ class _VenueDetailsScreenState
               ),
 
               const Text(
-                "No vibe updates from "
-                "the last 24 hours.",
-                style: TextStyle(
+                "No vibe updates "
+                "from the last "
+                "24 hours.",
+                style:
+                    TextStyle(
                   fontWeight:
                       FontWeight.w600,
                 ),
@@ -395,12 +479,15 @@ class _VenueDetailsScreenState
 
               Text(
                 _reports.isEmpty
-                    ? "Be the first to "
-                        "update this venue."
+                    ? "Be the first "
+                        "to update "
+                        "this venue."
                     : "Older community "
-                        "reports are still "
-                        "available below.",
-                style: TextStyle(
+                        "reports are "
+                        "still available "
+                        "below.",
+                style:
+                    TextStyle(
                   color:
                       Colors.grey[600],
                   fontSize: 13,
@@ -415,10 +502,13 @@ class _VenueDetailsScreenState
     return Card(
       child: Padding(
         padding:
-            const EdgeInsets.all(16),
+            const EdgeInsets.all(
+          16,
+        ),
         child: Column(
           crossAxisAlignment:
-              CrossAxisAlignment.start,
+              CrossAxisAlignment
+                  .start,
           children: [
             Row(
               mainAxisAlignment:
@@ -434,7 +524,8 @@ class _VenueDetailsScreenState
                   ),
                   decoration:
                       BoxDecoration(
-                    color: _badgeColor(
+                    color:
+                        _badgeColor(
                       _yiyoBadge,
                     ),
                     borderRadius:
@@ -447,9 +538,11 @@ class _VenueDetailsScreenState
                     _yiyoBadge,
                     style:
                         const TextStyle(
-                      color: Colors.white,
+                      color:
+                          Colors.white,
                       fontWeight:
-                          FontWeight.bold,
+                          FontWeight
+                              .bold,
                     ),
                   ),
                 ),
@@ -464,9 +557,11 @@ class _VenueDetailsScreenState
                         .freshnessLabel(),
                     textAlign:
                         TextAlign.right,
-                    style: TextStyle(
+                    style:
+                        TextStyle(
                       color:
-                          Colors.grey[600],
+                          Colors.grey[
+                              600],
                       fontSize: 13,
                     ),
                   ),
@@ -539,7 +634,8 @@ class _VenueDetailsScreenState
               ),
 
               Text(
-                latestReport.parkingNote,
+                latestReport
+                    .parkingNote,
               ),
             ],
           ],
@@ -561,10 +657,13 @@ class _VenueDetailsScreenState
       ),
       child: Padding(
         padding:
-            const EdgeInsets.all(14),
+            const EdgeInsets.all(
+          14,
+        ),
         child: Column(
           crossAxisAlignment:
-              CrossAxisAlignment.start,
+              CrossAxisAlignment
+                  .start,
           children: [
             Row(
               children: [
@@ -578,7 +677,8 @@ class _VenueDetailsScreenState
                     style:
                         const TextStyle(
                       fontWeight:
-                          FontWeight.bold,
+                          FontWeight
+                              .bold,
                     ),
                   ),
                 ),
@@ -598,20 +698,22 @@ class _VenueDetailsScreenState
                     ),
                     decoration:
                         BoxDecoration(
-                      color:
-                          Colors.grey[300],
+                      color: Colors
+                          .grey[300],
                       borderRadius:
                           BorderRadius
                               .circular(
                         8,
                       ),
                     ),
-                    child: const Text(
+                    child:
+                        const Text(
                       "Older",
-                      style: TextStyle(
+                      style:
+                          TextStyle(
                         fontSize: 11,
-                        color:
-                            Colors.black87,
+                        color: Colors
+                            .black87,
                       ),
                     ),
                   ),
@@ -672,13 +774,39 @@ class _VenueDetailsScreenState
               height: 8,
             ),
 
-            Text(
-              report.freshnessLabel(),
-              style: TextStyle(
-                color:
-                    Colors.grey[600],
-                fontSize: 12,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    report
+                        .freshnessLabel(),
+                    style:
+                        TextStyle(
+                      color: Colors
+                          .grey[600],
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+
+                if (report.id
+                    .trim()
+                    .isNotEmpty)
+                  TextButton.icon(
+                    onPressed: () =>
+                        _openReportFlagSheet(
+                      report,
+                    ),
+                    icon: const Icon(
+                      Icons
+                          .flag_outlined,
+                      size: 16,
+                    ),
+                    label: const Text(
+                      "Report",
+                    ),
+                  ),
+              ],
             ),
           ],
         ),
