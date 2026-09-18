@@ -21,12 +21,33 @@ def contributor_level_from_count(report_count: int) -> str:
     return "Rookie"
 
 
+def is_report_active(report: dict) -> bool:
+    """
+    Determine whether a report should be publicly visible and allowed
+    to influence YIYO's current-vibe calculations.
+
+    Legacy reports do not have a status field, so they are treated as
+    active for backwards compatibility.
+    """
+
+    status = report.get("status")
+
+    if status is None:
+        return True
+
+    return str(status).strip().lower() == "active"
+
+
 def get_yiyo_badge_from_reports(
     reports: list[dict],
     now: datetime | None = None,
 ) -> str:
     """
-    Calculate the current YIYO badge from recent community reports.
+    Calculate the current YIYO badge using active community reports
+    from the last 24 hours.
+
+    Flagged or removed reports remain stored for moderation/audit
+    purposes but do not influence the current venue state.
 
     Reports older than 24 hours remain historical records but do not
     influence the venue's current vibe.
@@ -41,6 +62,9 @@ def get_yiyo_badge_from_reports(
     usable_report_count = 0
 
     for report in reports:
+        if not is_report_active(report):
+            continue
+
         created_at_unix = report.get(
             "created_at_unix",
             0,
@@ -61,7 +85,7 @@ def get_yiyo_badge_from_reports(
             current_time - report_time
         ).total_seconds() / 3600
 
-        # Ignore timestamps that appear to come from the future.
+        # Future timestamps should not influence current vibe.
         if age_hours < 0:
             continue
 
@@ -129,8 +153,6 @@ def get_yiyo_badge_from_reports(
 
         total_score += report_score * weight
 
-    # There may be historical reports in Firestore, but if none of them
-    # are within the current 24-hour window the venue is MID.
     if usable_report_count == 0:
         return "MID"
 
@@ -161,3 +183,29 @@ def is_cache_fresh(
     age_seconds = now_unix - refreshed_at
 
     return 0 <= age_seconds < ttl_seconds
+
+def should_auto_flag_report(
+    flag_count: int,
+    threshold: int = 3,
+) -> bool:
+    return flag_count >= threshold
+
+def count_recent_actions(
+    timestamps: list[int],
+    now_unix: int,
+    window_seconds: int,
+) -> int:
+    count = 0
+
+    for timestamp in timestamps:
+        try:
+            value = int(timestamp)
+        except (TypeError, ValueError):
+            continue
+
+        age = now_unix - value
+
+        if 0 <= age < window_seconds:
+            count += 1
+
+    return count
