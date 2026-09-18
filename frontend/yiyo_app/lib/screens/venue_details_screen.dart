@@ -18,32 +18,44 @@ class VenueDetailsScreen extends StatefulWidget {
       _VenueDetailsScreenState();
 }
 
-class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
+class _VenueDetailsScreenState
+    extends State<VenueDetailsScreen> {
   bool _isLoading = true;
+
   String _yiyoBadge = "MID";
+
   List<VibeReport> _reports = [];
+
   int _reportCount = 0;
+
   String? _error;
 
   @override
   void initState() {
     super.initState();
+
     _loadReports();
   }
 
   Future<void> _loadReports() async {
     try {
       final data =
-          await ApiService.getVenueReports(widget.venue.id);
+          await ApiService.getVenueReports(
+        widget.venue.id,
+      );
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       final reports =
-          data["reports"] as List<VibeReport>? ?? [];
+          data["reports"] as List<VibeReport>? ??
+              [];
 
       setState(() {
         _yiyoBadge =
-            (data["yiyo_badge"] ?? "MID").toString();
+            (data["yiyo_badge"] ?? "MID")
+                .toString();
 
         _reportCount =
             (data["count"] as num?)?.toInt() ??
@@ -52,25 +64,34 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
         _reports = reports;
 
         _error = null;
+
         _isLoading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
-        _error = "Failed to load venue reports";
+        _error =
+            "Failed to load venue reports";
+
         _isLoading = false;
       });
     }
   }
 
-  Future<void> _openVibeReportSheet() async {
-    final submitted = await showVibeReportSheet(
+  Future<void>
+      _openVibeReportSheet() async {
+    final submitted =
+        await showVibeReportSheet(
       context: context,
       venue: widget.venue,
     );
 
-    if (submitted != true || !mounted) return;
+    if (submitted != true || !mounted) {
+      return;
+    }
 
     setState(() {
       _isLoading = true;
@@ -79,11 +100,15 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
 
     await _loadReports();
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text("Vibe report submitted"),
+        content: Text(
+          "Vibe report submitted",
+        ),
       ),
     );
   }
@@ -104,7 +129,19 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
   String _displayValue(String value) {
     final trimmed = value.trim();
 
-    return trimmed.isEmpty ? "Unknown" : trimmed;
+    return trimmed.isEmpty
+        ? "Unknown"
+        : trimmed;
+  }
+
+  VibeReport? _latestCurrentReport() {
+    for (final report in _reports) {
+      if (report.isCurrent()) {
+        return report;
+      }
+    }
+
+    return null;
   }
 
   @override
@@ -113,136 +150,189 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(venue.name),
+        title: Text(
+          venue.name,
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
           children: [
             Text(
               venue.name,
               style: const TextStyle(
                 fontSize: 24,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
 
-            const SizedBox(height: 8),
-
-            Text(
-              "⭐ ${venue.rating.toStringAsFixed(1)}",
+            const SizedBox(
+              height: 8,
             ),
 
-            const SizedBox(height: 6),
+            Text(
+              "⭐ "
+              "${venue.rating.toStringAsFixed(1)}",
+            ),
 
-            Text(venue.address),
+            const SizedBox(
+              height: 6,
+            ),
+
+            Text(
+              venue.address,
+            ),
 
             if (venue.distanceKm != null) ...[
-              const SizedBox(height: 6),
+              const SizedBox(
+                height: 6,
+              ),
+
               Text(
-                "${venue.distanceKm!.toStringAsFixed(1)} km away",
+                "${venue.distanceKm!.toStringAsFixed(1)} "
+                "km away",
               ),
             ],
 
-            const SizedBox(height: 24),
+            const SizedBox(
+              height: 24,
+            ),
 
             const Text(
               "Current vibe",
               style: TextStyle(
                 fontSize: 20,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
 
             if (_isLoading)
               const Center(
                 child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(),
+                  padding:
+                      EdgeInsets.all(24),
+                  child:
+                      CircularProgressIndicator(),
                 ),
               )
             else if (_error != null)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(_error!),
-
-                      const SizedBox(height: 8),
-
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            _isLoading = true;
-                            _error = null;
-                          });
-
-                          _loadReports();
-                        },
-                        child: const Text("Try again"),
-                      ),
-                    ],
-                  ),
-                ),
-              )
+              _buildErrorCard()
             else
               _buildCurrentVibe(),
 
-            const SizedBox(height: 16),
+            const SizedBox(
+              height: 16,
+            ),
 
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: _openVibeReportSheet,
-                icon: const Icon(Icons.bolt),
-                label: const Text("Update the vibe"),
+                onPressed:
+                    _openVibeReportSheet,
+                icon:
+                    const Icon(Icons.bolt),
+                label: const Text(
+                  "Update the vibe",
+                ),
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(
+              height: 24,
+            ),
 
             Row(
               mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
+                  MainAxisAlignment
+                      .spaceBetween,
               children: [
                 const Expanded(
                   child: Text(
-                    "Recent community updates",
+                    "Community updates",
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
                 ),
 
-                if (!_isLoading && _error == null)
+                if (!_isLoading &&
+                    _error == null)
                   Text(
                     "$_reportCount "
-                    "report${_reportCount == 1 ? "" : "s"}",
+                    "report"
+                    "${_reportCount == 1 ? "" : "s"}",
                     style: TextStyle(
-                      color: Colors.grey[600],
+                      color:
+                          Colors.grey[600],
                       fontSize: 13,
                     ),
                   ),
               ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
 
-            if (!_isLoading && _error == null)
+            if (!_isLoading &&
+                _error == null)
               if (_reports.isEmpty)
                 const Text(
                   "No reports yet. "
-                  "Community updates will appear here.",
+                  "Be the first to update "
+                  "this venue.",
                 )
               else
-                ..._reports.map(_buildReportCard),
+                ..._reports.map(
+                  _buildReportCard,
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorCard() {
+    return Card(
+      child: Padding(
+        padding:
+            const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.start,
+          children: [
+            Text(
+              _error!,
+            ),
+
+            const SizedBox(
+              height: 8,
+            ),
+
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _isLoading = true;
+                  _error = null;
+                });
+
+                _loadReports();
+              },
+              child: const Text(
+                "Try again",
+              ),
+            ),
           ],
         ),
       ),
@@ -251,39 +341,70 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
 
   Widget _buildCurrentVibe() {
     final latestReport =
-        _reports.isNotEmpty ? _reports.first : null;
+        _latestCurrentReport();
 
     if (latestReport == null) {
       return Card(
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding:
+              const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment:
                 CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(
+                padding:
+                    const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: _badgeColor(_yiyoBadge),
+                  color:
+                      _badgeColor(_yiyoBadge),
                   borderRadius:
-                      BorderRadius.circular(12),
+                      BorderRadius.circular(
+                    12,
+                  ),
                 ),
                 child: Text(
                   _yiyoBadge,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(
+                height: 12,
+              ),
 
               const Text(
-                "No community vibe reports yet.",
+                "No vibe updates from "
+                "the last 24 hours.",
+                style: TextStyle(
+                  fontWeight:
+                      FontWeight.w600,
+                ),
+              ),
+
+              const SizedBox(
+                height: 4,
+              ),
+
+              Text(
+                _reports.isEmpty
+                    ? "Be the first to "
+                        "update this venue."
+                    : "Older community "
+                        "reports are still "
+                        "available below.",
+                style: TextStyle(
+                  color:
+                      Colors.grey[600],
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
@@ -293,30 +414,39 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
+                  MainAxisAlignment
+                      .spaceBetween,
               children: [
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(
+                      const EdgeInsets
+                          .symmetric(
                     horizontal: 12,
                     vertical: 8,
                   ),
-                  decoration: BoxDecoration(
-                    color:
-                        _badgeColor(_yiyoBadge),
+                  decoration:
+                      BoxDecoration(
+                    color: _badgeColor(
+                      _yiyoBadge,
+                    ),
                     borderRadius:
-                        BorderRadius.circular(12),
+                        BorderRadius
+                            .circular(
+                      12,
+                    ),
                   ),
                   child: Text(
                     _yiyoBadge,
-                    style: const TextStyle(
+                    style:
+                        const TextStyle(
                       color: Colors.white,
                       fontWeight:
                           FontWeight.bold,
@@ -324,15 +454,19 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
                   ),
                 ),
 
-                const SizedBox(width: 12),
+                const SizedBox(
+                  width: 12,
+                ),
 
                 Flexible(
                   child: Text(
                     latestReport
                         .freshnessLabel(),
-                    textAlign: TextAlign.right,
+                    textAlign:
+                        TextAlign.right,
                     style: TextStyle(
-                      color: Colors.grey[600],
+                      color:
+                          Colors.grey[600],
                       fontSize: 13,
                     ),
                   ),
@@ -340,28 +474,36 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
               ],
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(
+              height: 16,
+            ),
 
             Text(
               "Crowd: "
               "${_displayValue(latestReport.crowdLevel)}",
             ),
 
-            const SizedBox(height: 6),
+            const SizedBox(
+              height: 6,
+            ),
 
             Text(
               "Safety: "
               "${_displayValue(latestReport.safetyLevel)}",
             ),
 
-            const SizedBox(height: 6),
+            const SizedBox(
+              height: 6,
+            ),
 
             Text(
               "Music: "
               "${_displayValue(latestReport.musicType)}",
             ),
 
-            const SizedBox(height: 6),
+            const SizedBox(
+              height: 6,
+            ),
 
             Text(
               "Queue: "
@@ -376,7 +518,9 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
                     .parkingSafety
                     .trim()
                     .isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(
+                height: 6,
+              ),
 
               Text(
                 "Parking: "
@@ -390,9 +534,13 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
                 .parkingNote
                 .trim()
                 .isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(
+                height: 6,
+              ),
 
-              Text(latestReport.parkingNote),
+              Text(
+                latestReport.parkingNote,
+              ),
             ],
           ],
         ),
@@ -400,29 +548,79 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
     );
   }
 
-  Widget _buildReportCard(VibeReport report) {
+  Widget _buildReportCard(
+    VibeReport report,
+  ) {
+    final current =
+        report.isCurrent();
+
     return Card(
-      margin: const EdgeInsets.only(
+      margin:
+          const EdgeInsets.only(
         bottom: 10,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding:
+            const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
-            Text(
-              "${_displayValue(report.yiyoStatus)}"
-              " • "
-              "${_displayValue(report.crowdLevel)}"
-              " • "
-              "${_displayValue(report.safetyLevel)}",
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    "${_displayValue(report.yiyoStatus)}"
+                    " • "
+                    "${_displayValue(report.crowdLevel)}"
+                    " • "
+                    "${_displayValue(report.safetyLevel)}",
+                    style:
+                        const TextStyle(
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+                if (!current)
+                  Container(
+                    margin:
+                        const EdgeInsets
+                            .only(
+                      left: 8,
+                    ),
+                    padding:
+                        const EdgeInsets
+                            .symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          Colors.grey[300],
+                      borderRadius:
+                          BorderRadius
+                              .circular(
+                        8,
+                      ),
+                    ),
+                    child: const Text(
+                      "Older",
+                      style: TextStyle(
+                        fontSize: 11,
+                        color:
+                            Colors.black87,
+                      ),
+                    ),
+                  ),
+              ],
             ),
 
-            const SizedBox(height: 6),
+            const SizedBox(
+              height: 6,
+            ),
 
             Text(
               "Music: "
@@ -449,21 +647,36 @@ class _VenueDetailsScreenState extends State<VenueDetailsScreen> {
                 .parkingNote
                 .trim()
                 .isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(report.parkingNote),
+              const SizedBox(
+                height: 4,
+              ),
+
+              Text(
+                report.parkingNote,
+              ),
             ],
 
-            if (report.comment.trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(report.comment),
+            if (report.comment
+                .trim()
+                .isNotEmpty) ...[
+              const SizedBox(
+                height: 6,
+              ),
+
+              Text(
+                report.comment,
+              ),
             ],
 
-            const SizedBox(height: 8),
+            const SizedBox(
+              height: 8,
+            ),
 
             Text(
               report.freshnessLabel(),
               style: TextStyle(
-                color: Colors.grey[600],
+                color:
+                    Colors.grey[600],
                 fontSize: 12,
               ),
             ),
