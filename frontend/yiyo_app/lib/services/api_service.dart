@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/user_contribution.dart';
+import '../models/user_profile.dart';
 import '../models/venue.dart';
 import '../models/vibe_report.dart';
 import '../models/vibe_report_request.dart';
@@ -28,8 +30,10 @@ class ApiService {
       dotenv.env["BACKEND_BASE_URL"] ??
       "http://127.0.0.1:8000";
 
-  static Future<Map<String, String>> _authHeaders() async {
-    final token = await AuthService.getIdToken();
+  static Future<Map<String, String>>
+      _authHeaders() async {
+    final token =
+        await AuthService.getIdToken();
 
     return {
       "Content-Type": "application/json",
@@ -46,15 +50,17 @@ class ApiService {
       final decoded =
           jsonDecode(response.body);
 
-      if (decoded is Map<String, dynamic>) {
-        final detail = decoded["detail"];
+      if (decoded
+          is Map<String, dynamic>) {
+        final detail =
+            decoded["detail"];
 
         if (detail != null) {
           return detail.toString();
         }
       }
     } catch (_) {
-      // Fall back to the supplied message below.
+      // Use fallback below.
     }
 
     return fallback;
@@ -68,14 +74,17 @@ class ApiService {
       "$baseUrl/venues?lat=$lat&lng=$lng",
     );
 
-    final response = await http.get(uri);
+    final response =
+        await http.get(uri);
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
+        statusCode:
+            response.statusCode,
         message: _errorMessage(
           response,
-          fallback: "Failed to load venues",
+          fallback:
+              "Failed to load venues",
         ),
       );
     }
@@ -85,30 +94,38 @@ class ApiService {
             as Map<String, dynamic>;
 
     final venuesJson =
-        data["venues"] as List<dynamic>? ?? [];
+        data["venues"]
+                as List<dynamic>? ??
+            [];
 
     return venuesJson
         .map(
-          (item) => Venue.fromJson(
-            item as Map<String, dynamic>,
+          (item) =>
+              Venue.fromJson(
+            item
+                as Map<String, dynamic>,
           ),
         )
         .toList();
   }
 
-  static Future<List<Venue>> getYiyoVenues({
+  static Future<List<Venue>>
+      getYiyoVenues({
     required double lat,
     required double lng,
   }) async {
     final uri = Uri.parse(
-      "$baseUrl/venues/yiyo?lat=$lat&lng=$lng",
+      "$baseUrl/venues/yiyo?"
+      "lat=$lat&lng=$lng",
     );
 
-    final response = await http.get(uri);
+    final response =
+        await http.get(uri);
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
+        statusCode:
+            response.statusCode,
         message: _errorMessage(
           response,
           fallback:
@@ -122,12 +139,16 @@ class ApiService {
             as Map<String, dynamic>;
 
     final venuesJson =
-        data["venues"] as List<dynamic>? ?? [];
+        data["venues"]
+                as List<dynamic>? ??
+            [];
 
     return venuesJson
         .map(
-          (item) => Venue.fromJson(
-            item as Map<String, dynamic>,
+          (item) =>
+              Venue.fromJson(
+            item
+                as Map<String, dynamic>,
           ),
         )
         .toList();
@@ -148,11 +169,13 @@ class ApiService {
       "&enrich_area=$enrichArea",
     );
 
-    final response = await http.get(uri);
+    final response =
+        await http.get(uri);
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
+        statusCode:
+            response.statusCode,
         message: _errorMessage(
           response,
           fallback: "Search failed",
@@ -183,7 +206,8 @@ class ApiService {
     final relatedVenues =
         relatedJson
             .map(
-              (item) => Venue.fromJson(
+              (item) =>
+                  Venue.fromJson(
                 item
                     as Map<String, dynamic>,
               ),
@@ -191,26 +215,35 @@ class ApiService {
             .toList();
 
     return {
-      "source": data["source"],
+      "source":
+          data["source"],
       "used_places_call":
-          data["used_places_call"] ?? false,
+          data["used_places_call"] ??
+              false,
       "enriched_area":
-          data["enriched_area"] ?? false,
-      "best_match": bestMatch,
-      "related_venues": relatedVenues,
+          data["enriched_area"] ??
+              false,
+      "best_match":
+          bestMatch,
+      "related_venues":
+          relatedVenues,
     };
   }
 
-  static Future<void> submitVibeReport(
+  static Future<void>
+      submitVibeReport(
     VibeReportRequest report,
   ) async {
-    final uri = Uri.parse(
+    final uri =
+        Uri.parse(
       "$baseUrl/reports",
     );
 
-    final response = await http.post(
+    final response =
+        await http.post(
       uri,
-      headers: await _authHeaders(),
+      headers:
+          await _authHeaders(),
       body: jsonEncode(
         report.toJson(),
       ),
@@ -218,7 +251,8 @@ class ApiService {
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
+        statusCode:
+            response.statusCode,
         message: _errorMessage(
           response,
           fallback:
@@ -236,11 +270,13 @@ class ApiService {
       "$baseUrl/reports/$venueId",
     );
 
-    final response = await http.get(uri);
+    final response =
+        await http.get(uri);
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
+        statusCode:
+            response.statusCode,
         message: _errorMessage(
           response,
           fallback:
@@ -254,7 +290,8 @@ class ApiService {
             as Map<String, dynamic>;
 
     final reportsJson =
-        data["reports"] as List<dynamic>? ??
+        data["reports"]
+                as List<dynamic>? ??
             [];
 
     final reports =
@@ -270,10 +307,13 @@ class ApiService {
 
     return {
       "count":
-          data["count"] ?? reports.length,
+          data["count"] ??
+              reports.length,
       "yiyo_badge":
-          data["yiyo_badge"] ?? "MID",
-      "reports": reports,
+          data["yiyo_badge"] ??
+              "MID",
+      "reports":
+          reports,
     };
   }
 
@@ -284,32 +324,124 @@ class ApiService {
     String details = "",
   }) async {
     final uri = Uri.parse(
-      "$baseUrl/reports/$reportId/flag",
+      "$baseUrl/reports/"
+      "$reportId/flag",
     );
 
-    final response = await http.post(
+    final response =
+        await http.post(
       uri,
-      headers: await _authHeaders(),
+      headers:
+          await _authHeaders(),
       body: jsonEncode(
         {
           "reason": reason,
-          "details": details.trim(),
+          "details":
+              details.trim(),
         },
       ),
     );
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
+        statusCode:
+            response.statusCode,
         message: _errorMessage(
           response,
           fallback:
-              "Failed to report this update",
+              "Failed to report "
+              "this update",
         ),
       );
     }
 
-    return jsonDecode(response.body)
-        as Map<String, dynamic>;
+    return jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+  }
+
+  static Future<UserProfile>
+      getMyProfile() async {
+    final uri =
+        Uri.parse(
+      "$baseUrl/me",
+    );
+
+    final response =
+        await http.get(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message: _errorMessage(
+          response,
+          fallback:
+              "Failed to load profile",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(response.body)
+            as Map<String, dynamic>;
+
+    return UserProfile.fromJson(
+      data,
+    );
+  }
+
+  static Future<List<UserContribution>>
+      getMyContributions({
+    int limit = 30,
+  }) async {
+    final uri = Uri.parse(
+      "$baseUrl/me/reports?"
+      "limit=$limit",
+    );
+
+    final response =
+        await http.get(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message: _errorMessage(
+          response,
+          fallback:
+              "Failed to load "
+              "contribution history",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(response.body)
+            as Map<String, dynamic>;
+
+    final reportsJson =
+        data["reports"]
+                as List<dynamic>? ??
+            [];
+
+    return reportsJson
+        .map(
+          (item) =>
+              UserContribution
+                  .fromJson(
+            item
+                as Map<String, dynamic>,
+          ),
+        )
+        .toList();
   }
 }
