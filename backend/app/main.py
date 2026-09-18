@@ -5,7 +5,10 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import auth as firebase_auth
 from google.cloud.firestore_v1.base_query import FieldFilter
-
+from app.services.user_service import (
+    get_user_contributions,
+    get_user_profile,
+)
 from app.firebase_config import db
 from app.models.report_model import (
     ReportFlagCreate,
@@ -1110,3 +1113,83 @@ def get_reports_for_venue(
             detail=
                 "Failed to fetch reports",
         )
+# ---------------------------------------------------------------------------
+# Current user / profile
+# ---------------------------------------------------------------------------
+
+@app.get("/me")
+def get_my_profile(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = current_user.get(
+        "uid"
+    )
+
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid user",
+        )
+
+    profile = get_user_profile(
+        uid=uid,
+
+        token_email=str(
+            current_user.get(
+                "email",
+                "",
+            )
+            or ""
+        ),
+
+        token_display_name=str(
+            current_user.get(
+                "name",
+                "",
+            )
+            or ""
+        ),
+    )
+
+    return profile.model_dump()
+
+
+@app.get("/me/reports")
+def get_my_reports(
+    limit: int = Query(
+        30,
+        ge=1,
+        le=50,
+    ),
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = current_user.get(
+        "uid"
+    )
+
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid user",
+        )
+
+    reports = (
+        get_user_contributions(
+            uid=uid,
+            limit=limit,
+        )
+    )
+
+    return {
+        "count": len(reports),
+
+        "reports": [
+            report.model_dump()
+            for report in reports
+        ],
+    }

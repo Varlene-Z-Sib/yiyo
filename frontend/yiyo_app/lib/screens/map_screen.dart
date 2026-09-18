@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-
+import 'profile_screen.dart';
 import '../models/venue.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
@@ -798,6 +798,20 @@ class _MapScreenState extends State<MapScreen> {
         appBar: AppBar(
           title: const Text("YIYO"),
           actions: [
+            IconButton(
+              tooltip: "Profile",
+              icon: const Icon(
+                Icons.person_outline,
+              ),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const ProfileScreen(),
+                  ),
+                );
+              },
+            ),
             IconButton(
               onPressed: _logout,
               icon: const Icon(Icons.logout),
