@@ -1,9 +1,13 @@
 import os
 from datetime import datetime, timezone
+
 from fastapi import HTTPException
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.firebase_config import db
+from app.services.materialized_vibe_service import (
+    safe_rebuild_venue_community_summary,
+)
 from app.services.yiyo_logic import (
     count_recent_actions,
     should_auto_flag_report,
@@ -15,7 +19,11 @@ REPORT_FLAGS_COLLECTION = "report_flags"
 
 AUTO_FLAG_THRESHOLD = 3
 
+
+# ---------------------------------------------------------------------------
 # Contribution limits
+# ---------------------------------------------------------------------------
+
 SAME_VENUE_COOLDOWN_SECONDS = int(
     os.getenv(
         "REPORT_SAME_VENUE_COOLDOWN_SECONDS",
@@ -37,6 +45,11 @@ CONTRIBUTION_DAILY_LIMIT = int(
     )
 )
 
+
+# ---------------------------------------------------------------------------
+# Flag limits
+# ---------------------------------------------------------------------------
+
 FLAG_HOURLY_LIMIT = int(
     os.getenv(
         "FLAG_HOURLY_LIMIT",
@@ -51,28 +64,26 @@ FLAG_DAILY_LIMIT = int(
     )
 )
 
-# Flagging limits
-FLAG_HOURLY_LIMIT = 2
-FLAG_DAILY_LIMIT = 5
-
 
 def _now_unix() -> int:
     return int(
-        datetime.now(timezone.utc).timestamp()
+        datetime.now(
+            timezone.utc
+        ).timestamp()
     )
 
+
+# ---------------------------------------------------------------------------
+# Contribution rate limiting
+# ---------------------------------------------------------------------------
 
 def _get_recent_user_report_timestamps(
     uid: str,
 ) -> list[int]:
-    """
-    Fetch only enough recent reports to evaluate the daily limit.
-
-    We never need more than CONTRIBUTION_DAILY_LIMIT records here.
-    """
-
     docs = (
-        db.collection(REPORTS_COLLECTION)
+        db.collection(
+            REPORTS_COLLECTION
+        )
         .where(
             filter=FieldFilter(
                 "uid",
@@ -84,52 +95,9 @@ def _get_recent_user_report_timestamps(
             "created_at_unix",
             direction="DESCENDING",
         )
-        .limit(CONTRIBUTION_DAILY_LIMIT)
-        .stream()
-    )
-
-    timestamps = []
-
-    for doc in docs:
-        data = doc.to_dict() or {}
-
-        created_at_unix = int(
-            data.get(
-                "created_at_unix",
-                0,
-            )
-            or 0
+        .limit(
+            CONTRIBUTION_DAILY_LIMIT
         )
-
-        if created_at_unix:
-            timestamps.append(
-                created_at_unix
-            )
-
-    return timestamps
-
-
-def _get_recent_user_flag_timestamps(
-    uid: str,
-) -> list[int]:
-    """
-    Fetch only enough flags to evaluate the daily flagging limit.
-    """
-
-    docs = (
-        db.collection(REPORT_FLAGS_COLLECTION)
-        .where(
-            filter=FieldFilter(
-                "flagged_by_uid",
-                "==",
-                uid,
-            )
-        )
-        .order_by(
-            "created_at_unix",
-            direction="DESCENDING",
-        )
-        .limit(FLAG_DAILY_LIMIT)
         .stream()
     )
 
@@ -159,22 +127,24 @@ def enforce_contribution_rate_limits(
     venue_id: str,
 ):
     """
-    Protect contribution creation from spam.
-
     Rules:
-    - Same venue: once every 30 minutes.
-    - Any venues: maximum 4 reports per hour.
-    - Any venues: maximum 12 reports per 24 hours.
+
+    - Same venue:
+      one contribution per configured cooldown.
+
+    - All venues:
+      configured hourly limit.
+
+    - All venues:
+      configured daily limit.
     """
 
     now_unix = _now_unix()
 
-    # ---------------------------------------------------------
-    # Same-venue cooldown
-    # ---------------------------------------------------------
-
     latest_docs = (
-        db.collection(REPORTS_COLLECTION)
+        db.collection(
+            REPORTS_COLLECTION
+        )
         .where(
             filter=FieldFilter(
                 "uid",
@@ -255,10 +225,6 @@ def enforce_contribution_rate_limits(
                     ),
                 )
 
-    # ---------------------------------------------------------
-    # Global contribution limits
-    # ---------------------------------------------------------
-
     timestamps = (
         _get_recent_user_report_timestamps(
             uid
@@ -308,19 +274,58 @@ def enforce_contribution_rate_limits(
         )
 
 
+# ---------------------------------------------------------------------------
+# Flag rate limiting
+# ---------------------------------------------------------------------------
+
+def _get_recent_user_flag_timestamps(
+    uid: str,
+) -> list[int]:
+    docs = (
+        db.collection(
+            REPORT_FLAGS_COLLECTION
+        )
+        .where(
+            filter=FieldFilter(
+                "flagged_by_uid",
+                "==",
+                uid,
+            )
+        )
+        .order_by(
+            "created_at_unix",
+            direction="DESCENDING",
+        )
+        .limit(
+            FLAG_DAILY_LIMIT
+        )
+        .stream()
+    )
+
+    timestamps = []
+
+    for doc in docs:
+        data = doc.to_dict() or {}
+
+        created_at_unix = int(
+            data.get(
+                "created_at_unix",
+                0,
+            )
+            or 0
+        )
+
+        if created_at_unix:
+            timestamps.append(
+                created_at_unix
+            )
+
+    return timestamps
+
+
 def enforce_flag_rate_limits(
     uid: str,
 ):
-    """
-    Protect report flagging from mass-report abuse.
-
-    Rules:
-    - Maximum 2 flags per hour.
-    - Maximum 5 flags per 24 hours.
-
-    One-flag-per-report is enforced separately.
-    """
-
     now_unix = _now_unix()
 
     timestamps = (
@@ -337,7 +342,10 @@ def enforce_flag_rate_limits(
         )
     )
 
-    if flags_last_hour >= FLAG_HOURLY_LIMIT:
+    if (
+        flags_last_hour
+        >= FLAG_HOURLY_LIMIT
+    ):
         raise HTTPException(
             status_code=429,
             detail=(
@@ -355,7 +363,10 @@ def enforce_flag_rate_limits(
         )
     )
 
-    if flags_last_day >= FLAG_DAILY_LIMIT:
+    if (
+        flags_last_day
+        >= FLAG_DAILY_LIMIT
+    ):
         raise HTTPException(
             status_code=429,
             detail=(
@@ -365,6 +376,10 @@ def enforce_flag_rate_limits(
         )
 
 
+# ---------------------------------------------------------------------------
+# Report moderation
+# ---------------------------------------------------------------------------
+
 def flag_report_for_moderation(
     report_id: str,
     uid: str,
@@ -372,8 +387,12 @@ def flag_report_for_moderation(
     details: str,
 ) -> dict:
     report_ref = (
-        db.collection(REPORTS_COLLECTION)
-        .document(report_id)
+        db.collection(
+            REPORTS_COLLECTION
+        )
+        .document(
+            report_id
+        )
     )
 
     report_snapshot = (
@@ -391,11 +410,20 @@ def flag_report_for_moderation(
         or {}
     )
 
+    venue_id = str(
+        report.get(
+            "venue_id",
+            "",
+        )
+        or ""
+    ).strip()
+
     report_owner_uid = str(
         report.get(
             "uid",
             "",
         )
+        or ""
     ).strip()
 
     if report_owner_uid == uid:
@@ -412,6 +440,7 @@ def flag_report_for_moderation(
             "status",
             "active",
         )
+        or "active"
     ).strip().lower()
 
     if current_status == "removed":
@@ -428,10 +457,13 @@ def flag_report_for_moderation(
             "message":
                 "Report is already "
                 "under moderation",
+
             "report_id":
                 report_id,
+
             "status":
                 "flagged",
+
             "flag_count":
                 int(
                     report.get(
@@ -442,8 +474,6 @@ def flag_report_for_moderation(
                 ),
         }
 
-    # One deterministic flag document
-    # per report/account pair.
     flag_document_id = (
         f"{report_id}__{uid}"
     )
@@ -466,8 +496,6 @@ def flag_report_for_moderation(
             ),
         )
 
-    # Only enforce account-wide flagging limits
-    # after confirming this isn't a duplicate.
     enforce_flag_rate_limits(
         uid
     )
@@ -482,10 +510,7 @@ def flag_report_for_moderation(
                 report_id,
 
             "venue_id":
-                report.get(
-                    "venue_id",
-                    "",
-                ),
+                venue_id,
 
             "flagged_by_uid":
                 uid,
@@ -506,9 +531,6 @@ def flag_report_for_moderation(
         }
     )
 
-    # We only care whether the threshold has
-    # been reached, so reading more than 3 flags
-    # is unnecessary.
     flag_docs = (
         db.collection(
             REPORT_FLAGS_COLLECTION
@@ -563,6 +585,18 @@ def flag_report_for_moderation(
         update_data,
         merge=True,
     )
+
+    # Only a moderation-state change affects Current Vibe.
+    #
+    # 1 or 2 flags leave the report active, so there is no reason
+    # to rebuild the venue summary yet.
+    if (
+        new_status == "flagged"
+        and venue_id
+    ):
+        safe_rebuild_venue_community_summary(
+            venue_id
+        )
 
     return {
         "message":

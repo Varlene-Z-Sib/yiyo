@@ -70,7 +70,9 @@ class VibeReport {
     );
   }
 
-  static int? _parseInt(dynamic value) {
+  static int? _parseInt(
+    dynamic value,
+  ) {
     if (value is int) {
       return value;
     }
@@ -97,8 +99,14 @@ class VibeReport {
     DateTime? now,
     Duration maxAge =
         const Duration(hours: 24),
+
+    // Allow a small difference between the phone clock
+    // and the backend/server clock.
+    Duration futureTolerance =
+        const Duration(minutes: 5),
   }) {
-    final reportTime = reportedDateTime;
+    final reportTime =
+        reportedDateTime;
 
     if (reportTime == null) {
       return false;
@@ -108,10 +116,18 @@ class VibeReport {
         (now ?? DateTime.now()).toUtc();
 
     final age =
-        currentTime.difference(reportTime);
+        currentTime.difference(
+      reportTime,
+    );
 
     if (age.isNegative) {
-      return false;
+      final futureBy =
+          reportTime.difference(
+        currentTime,
+      );
+
+      return futureBy <=
+          futureTolerance;
     }
 
     return age <= maxAge;
@@ -120,7 +136,8 @@ class VibeReport {
   String freshnessLabel({
     DateTime? now,
   }) {
-    final reportTime = reportedDateTime;
+    final reportTime =
+        reportedDateTime;
 
     if (reportTime == null) {
       return "Time unavailable";
@@ -130,7 +147,9 @@ class VibeReport {
         (now ?? DateTime.now()).toUtc();
 
     final difference =
-        currentTime.difference(reportTime);
+        currentTime.difference(
+      reportTime,
+    );
 
     if (difference.isNegative) {
       return "Just now";
