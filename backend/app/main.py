@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
 from typing import Optional
-
+from app.services.materialized_vibe_service import (
+    attach_materialized_community_states,
+    safe_rebuild_venue_community_summary,
+)
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import auth as firebase_auth
@@ -285,13 +288,12 @@ def load_cached_area_venues(
         for venue in venues
     ]
 
-    for venue in venues:
-        venue["yiyo_badge"] = (
-            get_venue_yiyo_badge(
-                venue.get("place_id")
-                or venue.get("id")
-            )
+
+    venues = (
+        attach_materialized_community_states(
+            venues
         )
+    )
 
     venues.sort(
         key=lambda venue: (
@@ -353,11 +355,11 @@ def get_or_build_area_venues(
     )
 
     for venue in venues:
-        venue["yiyo_badge"] = (
-            get_venue_yiyo_badge(
-                venue.get("place_id")
-            )
+        venues = (
+        attach_materialized_community_states(
+            venues
         )
+    )
 
     return (
         "google_places",
@@ -455,49 +457,7 @@ def score_cached_match(
 # Community state / moderation
 # ---------------------------------------------------------------------------
 
-def get_venue_yiyo_badge(
-    venue_id: Optional[str],
-) -> str:
-    if not venue_id:
-        return "MID"
 
-    docs = (
-        db.collection(
-            REPORTS_COLLECTION
-        )
-        .where(
-            filter=FieldFilter(
-                "venue_id",
-                "==",
-                venue_id,
-            )
-        )
-        .stream()
-    )
-
-    reports = [
-        doc.to_dict()
-        for doc in docs
-    ]
-
-    reports.sort(
-        key=lambda report: int(
-            report.get(
-                "created_at_unix",
-                0,
-            )
-            or 0
-        ),
-        reverse=True,
-    )
-
-    # get_yiyo_badge_from_reports handles:
-    # - moderation status
-    # - 24-hour freshness
-    # - recency weighting
-    return get_yiyo_badge_from_reports(
-        reports[:12]
-    )
 
 
 def update_user_report_stats(
@@ -600,24 +560,21 @@ def get_yiyo_venues(
         )
     )
 
-    yiyo_venues = []
-
-    for venue in venues:
-        badge = get_venue_yiyo_badge(
-            venue.get("place_id")
-            or venue.get("id")
-        )
-
-        venue["yiyo_badge"] = badge
-
-        if badge == "YIYO":
-            yiyo_venues.append(
-                venue
+    yiyo_venues = [
+        venue
+        for venue in venues
+        if (
+            venue.get(
+                "yiyo_badge"
             )
+            == "YIYO"
+        )
+    ]
 
     return {
         "count":
             len(yiyo_venues),
+
         "venues":
             yiyo_venues,
     }
@@ -750,14 +707,11 @@ def search_venues(
         search_results
     )
 
-    for venue in search_results:
-        venue["yiyo_badge"] = (
-            get_venue_yiyo_badge(
-                venue.get(
-                    "place_id"
-                )
-            )
+    search_results = (
+        attach_materialized_community_states(
+            search_results
         )
+    )
 
     best_match = (
         search_results[0]
@@ -792,6 +746,12 @@ def search_venues(
             enriched,
         )
 
+        enriched = (
+            attach_materialized_community_states(
+                enriched
+            )
+        )
+
         seen: set[str] = set()
         merged_related = []
 
@@ -812,13 +772,7 @@ def search_venues(
                     "place_id"
                 )
             ):
-                item[
-                    "yiyo_badge"
-                ] = (
-                    get_venue_yiyo_badge(
-                        place_id
-                    )
-                )
+                
 
                 seen.add(
                     place_id
@@ -971,9 +925,20 @@ def create_vibe_report(
             uid
         )
 
+        # vibe_reports remains the source of truth.
+        #
+        # Rebuilding the discovery cache is best-effort: a cache/index
+        # failure must never turn a valid contribution into a failed
+        # submission.
+        safe_rebuild_venue_community_summary(
+            report.venue_id
+        )
+
         payload["id"] = (
             doc_ref.id
         )
+
+    
 
         return {
             "message":
