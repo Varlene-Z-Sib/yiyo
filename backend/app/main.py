@@ -806,7 +806,6 @@ def search_venues(
 # ---------------------------------------------------------------------------
 # Contributions
 # ---------------------------------------------------------------------------
-
 @app.post("/reports")
 def create_vibe_report(
     report: VibeReportCreate,
@@ -856,6 +855,10 @@ def create_vibe_report(
             timezone.utc
         )
 
+        # ------------------------------------------------------------------
+        # Required / server-owned report fields
+        # ------------------------------------------------------------------
+
         payload = {
             "venue_id":
                 report.venue_id,
@@ -866,35 +869,16 @@ def create_vibe_report(
             "crowd_level":
                 report.crowd_level,
 
-            "safety_level":
-                report.safety_level,
-
-            "music_type":
-                report.music_type,
-
-            "queue_length":
-                report.queue_length,
-
             "yiyo_status":
                 report.yiyo_status,
-
-            "parking_availability":
-                report.parking_availability,
-
-            "parking_safety":
-                report.parking_safety,
-
-            "parking_note":
-                report.parking_note,
-
-            "comment":
-                report.comment,
 
             "reported_at":
                 now.isoformat(),
 
             "created_at_unix":
-                int(now.timestamp()),
+                int(
+                    now.timestamp()
+                ),
 
             "uid":
                 uid,
@@ -909,6 +893,58 @@ def create_vibe_report(
             "status":
                 "active",
         }
+
+        # ------------------------------------------------------------------
+        # Optional Quick Vibe detail fields
+        #
+        # Only store these when the user actually supplied them.
+        # This prevents a quick contribution from inventing/recording
+        # unknown safety, music, queue or parking information.
+        # ------------------------------------------------------------------
+
+        if report.safety_level is not None:
+            payload[
+                "safety_level"
+            ] = report.safety_level
+
+        if report.music_type is not None:
+            payload[
+                "music_type"
+            ] = report.music_type
+
+        if report.queue_length is not None:
+            payload[
+                "queue_length"
+            ] = report.queue_length
+
+        if (
+            report.parking_availability
+            is not None
+        ):
+            payload[
+                "parking_availability"
+            ] = (
+                report.parking_availability
+            )
+
+        if report.parking_safety is not None:
+            payload[
+                "parking_safety"
+            ] = report.parking_safety
+
+        if report.parking_note:
+            payload[
+                "parking_note"
+            ] = report.parking_note
+
+        if report.comment:
+            payload[
+                "comment"
+            ] = report.comment
+
+        # ------------------------------------------------------------------
+        # Persist source report
+        # ------------------------------------------------------------------
 
         doc_ref = (
             db.collection(
@@ -927,9 +963,9 @@ def create_vibe_report(
 
         # vibe_reports remains the source of truth.
         #
-        # Rebuilding the discovery cache is best-effort: a cache/index
-        # failure must never turn a valid contribution into a failed
-        # submission.
+        # Rebuilding the discovery cache is best-effort:
+        # a cache/index failure must never turn a valid
+        # contribution into a failed submission.
         safe_rebuild_venue_community_summary(
             report.venue_id
         )
@@ -938,11 +974,10 @@ def create_vibe_report(
             doc_ref.id
         )
 
-    
-
         return {
             "message":
                 "Report saved successfully",
+
             "report":
                 payload,
         }

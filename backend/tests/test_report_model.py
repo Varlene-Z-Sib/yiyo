@@ -6,6 +6,7 @@ from app.models.report_model import (
     VibeReportCreate,
 )
 
+
 def valid_report_data():
     return {
         "venue_id": "venue_123",
@@ -110,4 +111,47 @@ def test_report_flag_details_are_limited():
         ReportFlagCreate(
             reason="other",
             details="x" * 501,
+        )
+
+def test_quick_vibe_report_accepts_minimum_fields():
+    report = VibeReportCreate(
+        venue_id="venue_123",
+        venue_name="Test Lounge",
+        crowd_level="Busy",
+        yiyo_status="Yes definitely",
+    )
+
+    assert report.crowd_level == "Busy"
+
+    assert (
+        report.yiyo_status
+        == "Yes definitely"
+    )
+
+    assert report.safety_level is None
+    assert report.music_type is None
+    assert report.queue_length is None
+
+    assert (
+        report.parking_availability
+        is None
+    )
+
+    assert (
+        report.parking_safety
+        is None
+    )
+
+
+def test_quick_vibe_still_validates_optional_values():
+    with pytest.raises(
+        ValidationError
+    ):
+        VibeReportCreate(
+            venue_id="venue_123",
+            venue_name="Test Lounge",
+            crowd_level="Busy",
+            yiyo_status="Kind of",
+            safety_level=
+                "Definitely fine",
         )
