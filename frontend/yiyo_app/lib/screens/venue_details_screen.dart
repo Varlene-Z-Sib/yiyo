@@ -427,173 +427,233 @@ class _VenueDetailsScreenState
   }
 
   Widget _buildCurrentVibe() {
-    if (!_summary.hasCurrentReports) {
-      return Card(
-        child: Padding(
-          padding:
-              const EdgeInsets.all(
-            16,
-          ),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              _buildBadge(),
-
-              const SizedBox(
-                height: 12,
-              ),
-
-              const Text(
-                "No vibe updates from "
-                "the last 24 hours.",
-                style:
-                    TextStyle(
-                  fontWeight:
-                      FontWeight.w600,
-                ),
-              ),
-
-              const SizedBox(
-                height: 4,
-              ),
-
-              Text(
-                _reports.isEmpty
-                    ? "Be the first to "
-                        "update this venue."
-                    : "Older community "
-                        "reports are still "
-                        "available below.",
-                style:
-                    TextStyle(
-                  color:
-                      Colors.grey[600],
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
+  if (!_summary.hasCurrentReports) {
     return Card(
       child: Padding(
-        padding:
-            const EdgeInsets.all(
+        padding: const EdgeInsets.all(
           16,
         ),
         child: Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                _buildBadge(),
+            _buildBadge(),
 
-                const Spacer(),
+            const SizedBox(
+              height: 12,
+            ),
 
-                Flexible(
-                  child: Text(
-                    _summary
-                        .freshnessLabel(),
-                    textAlign:
-                        TextAlign.right,
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.grey[600],
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ],
+            const Text(
+              "No vibe updates from "
+              "the last 24 hours.",
+              style: TextStyle(
+                fontWeight:
+                    FontWeight.w600,
+              ),
             ),
 
             const SizedBox(
-              height: 8,
+              height: 4,
             ),
 
             Text(
-              "Based on "
-              "${_summary.reportCount} "
-              "update"
-              "${_summary.reportCount == 1 ? "" : "s"} "
-              "from the last 24 hours",
-              style:
-                  TextStyle(
+              _reports.isEmpty
+                  ? "Be the first to "
+                      "update this venue."
+                  : "Older community "
+                      "updates are still "
+                      "available below.",
+              style: TextStyle(
                 color:
                     Colors.grey[600],
                 fontSize: 13,
               ),
             ),
-
-            const SizedBox(
-              height: 18,
-            ),
-
-            _buildSignalRow(
-              icon:
-                  Icons.groups_outlined,
-              label: "Crowd",
-              signal:
-                  _summary.crowd,
-            ),
-
-            const Divider(
-              height: 24,
-            ),
-
-            _buildSignalRow(
-              icon:
-                  Icons.shield_outlined,
-              label: "Safety",
-              signal:
-                  _summary.safety,
-            ),
-
-            const Divider(
-              height: 24,
-            ),
-
-            _buildSignalRow(
-              icon:
-                  Icons.music_note_outlined,
-              label: "Music",
-              signal:
-                  _summary.music,
-            ),
-
-            const Divider(
-              height: 24,
-            ),
-
-            _buildSignalRow(
-              icon:
-                  Icons.people_outline,
-              label: "Queue",
-              signal:
-                  _summary.queue,
-            ),
-
-            if (_summary
-                    .parkingAvailability
-                    .hasValue ||
-                _summary
-                    .parkingSafety
-                    .hasValue) ...[
-              const Divider(
-                height: 24,
-              ),
-
-              _buildParkingRow(),
-            ],
           ],
         ),
       ),
     );
   }
+
+  final signalWidgets =
+      <Widget>[];
+
+  // Crowd is part of the Quick Vibe minimum
+  // contribution, so this should normally
+  // always have a value.
+  if (_summary.crowd.hasValue) {
+    signalWidgets.add(
+      _buildSignalRow(
+        icon:
+            Icons.groups_outlined,
+        label: "Crowd",
+        signal:
+            _summary.crowd,
+      ),
+    );
+  }
+
+  // Safety is optional.
+  if (_summary.safety.hasValue) {
+    if (signalWidgets.isNotEmpty) {
+      signalWidgets.add(
+        const Divider(
+          height: 24,
+        ),
+      );
+    }
+
+    signalWidgets.add(
+      _buildSignalRow(
+        icon:
+            Icons.shield_outlined,
+        label:
+            "Community safety",
+        signal:
+            _summary.safety,
+      ),
+    );
+  }
+
+  // Music is optional.
+  if (_summary.music.hasValue) {
+    if (signalWidgets.isNotEmpty) {
+      signalWidgets.add(
+        const Divider(
+          height: 24,
+        ),
+      );
+    }
+
+    signalWidgets.add(
+      _buildSignalRow(
+        icon:
+            Icons.music_note_outlined,
+        label: "Music",
+        signal:
+            _summary.music,
+      ),
+    );
+  }
+
+  // Queue is optional.
+  if (_summary.queue.hasValue) {
+    if (signalWidgets.isNotEmpty) {
+      signalWidgets.add(
+        const Divider(
+          height: 24,
+        ),
+      );
+    }
+
+    signalWidgets.add(
+      _buildSignalRow(
+        icon:
+            Icons.people_outline,
+        label: "Queue",
+        signal:
+            _summary.queue,
+      ),
+    );
+  }
+
+  // Parking is optional.
+  if (_summary
+          .parkingAvailability
+          .hasValue ||
+      _summary
+          .parkingSafety
+          .hasValue) {
+    if (signalWidgets.isNotEmpty) {
+      signalWidgets.add(
+        const Divider(
+          height: 24,
+        ),
+      );
+    }
+
+    signalWidgets.add(
+      _buildParkingRow(),
+    );
+  }
+
+  return Card(
+    child: Padding(
+      padding: const EdgeInsets.all(
+        16,
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildBadge(),
+
+              const Spacer(),
+
+              Flexible(
+                child: Text(
+                  _summary
+                      .freshnessLabel(),
+                  textAlign:
+                      TextAlign.right,
+                  style: TextStyle(
+                    color:
+                        Colors.grey[600],
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(
+            height: 8,
+          ),
+
+          Text(
+            "Based on "
+            "${_summary.reportCount} "
+            "update"
+            "${_summary.reportCount == 1 ? "" : "s"} "
+            "from the last 24 hours",
+            style: TextStyle(
+              color:
+                  Colors.grey[600],
+              fontSize: 13,
+            ),
+          ),
+
+          if (signalWidgets
+              .isNotEmpty) ...[
+            const SizedBox(
+              height: 18,
+            ),
+
+            ...signalWidgets,
+          ] else ...[
+            const SizedBox(
+              height: 14,
+            ),
+
+            Text(
+              "Recent community activity "
+              "is available, but there "
+              "aren't enough detailed "
+              "signals yet.",
+              style: TextStyle(
+                color:
+                    Colors.grey[600],
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _buildBadge() {
     return Container(
@@ -780,6 +840,45 @@ class _VenueDetailsScreenState
     final current =
         report.isCurrent();
 
+    final headlineParts = <String>[
+      _displayValue(
+        report.yiyoStatus,
+      ),
+      _displayValue(
+        report.crowdLevel,
+      ),
+    ];
+
+    if (report.safetyLevel
+        .trim()
+        .isNotEmpty) {
+      headlineParts.add(
+        report.safetyLevel.trim(),
+      );
+    }
+
+    final parkingParts = <String>[];
+
+    if (report.parkingAvailability
+        .trim()
+        .isNotEmpty) {
+      parkingParts.add(
+        report
+            .parkingAvailability
+            .trim(),
+      );
+    }
+
+    if (report.parkingSafety
+        .trim()
+        .isNotEmpty) {
+      parkingParts.add(
+        report
+            .parkingSafety
+            .trim(),
+      );
+    }
+
     return Card(
       margin:
           const EdgeInsets.only(
@@ -798,11 +897,9 @@ class _VenueDetailsScreenState
               children: [
                 Expanded(
                   child: Text(
-                    "${_displayValue(report.yiyoStatus)}"
-                    " • "
-                    "${_displayValue(report.crowdLevel)}"
-                    " • "
-                    "${_displayValue(report.safetyLevel)}",
+                    headlineParts.join(
+                      " • ",
+                    ),
                     style:
                         const TextStyle(
                       fontWeight:
@@ -845,33 +942,20 @@ class _VenueDetailsScreenState
               ],
             ),
 
-            const SizedBox(
-              height: 6,
-            ),
-
-            Text(
-              "Music: "
-              "${_displayValue(report.musicType)}",
-            ),
-
-            Text(
-              "Queue: "
-              "${_displayValue(report.queueLength)}",
-            ),
-
-            if (report
-                .parkingAvailability
+            if (report.musicType
                 .trim()
-                .isNotEmpty)
-              Text(
-                "Parking: "
-                "${_displayValue(report.parkingAvailability)}"
-                " • "
-                "${_displayValue(report.parkingSafety)}",
+                .isNotEmpty) ...[
+              const SizedBox(
+                height: 6,
               ),
 
-            if (report
-                .parkingNote
+              Text(
+                "Music: "
+                "${report.musicType.trim()}",
+              ),
+            ],
+
+            if (report.queueLength
                 .trim()
                 .isNotEmpty) ...[
               const SizedBox(
@@ -879,7 +963,33 @@ class _VenueDetailsScreenState
               ),
 
               Text(
-                report.parkingNote,
+                "Queue: "
+                "${report.queueLength.trim()}",
+              ),
+            ],
+
+            if (parkingParts
+                .isNotEmpty) ...[
+              const SizedBox(
+                height: 4,
+              ),
+
+              Text(
+                "Parking: "
+                "${parkingParts.join(" • ")}",
+              ),
+            ],
+
+            if (report.parkingNote
+                .trim()
+                .isNotEmpty) ...[
+              const SizedBox(
+                height: 6,
+              ),
+
+              Text(
+                report.parkingNote
+                    .trim(),
               ),
             ],
 
@@ -891,7 +1001,7 @@ class _VenueDetailsScreenState
               ),
 
               Text(
-                report.comment,
+                report.comment.trim(),
               ),
             ],
 

@@ -1,48 +1,90 @@
 class VibeReportRequest {
   final String venueId;
   final String venueName;
+
+  // Quick Vibe required fields.
   final String crowdLevel;
-  final String safetyLevel;
-  final String musicType;
-  final String queueLength;
   final String yiyoStatus;
 
-  final String parkingAvailability;
-  final String parkingSafety;
+  // Optional detailed fields.
+  final String? safetyLevel;
+  final String? musicType;
+  final String? queueLength;
+
+  final String? parkingAvailability;
+  final String? parkingSafety;
+
   final String parkingNote;
-
   final String comment;
-  final String reportedAt;
 
-  VibeReportRequest({
+  // Retained for compatibility.
+  // The backend remains authoritative for report time.
+  final String? reportedAt;
+
+  const VibeReportRequest({
     required this.venueId,
     required this.venueName,
     required this.crowdLevel,
-    required this.safetyLevel,
-    required this.musicType,
-    required this.queueLength,
     required this.yiyoStatus,
-    required this.parkingAvailability,
-    required this.parkingSafety,
-    required this.parkingNote,
-    required this.comment,
-    required this.reportedAt,
+    this.safetyLevel,
+    this.musicType,
+    this.queueLength,
+    this.parkingAvailability,
+    this.parkingSafety,
+    this.parkingNote = "",
+    this.comment = "",
+    this.reportedAt,
   });
 
   Map<String, dynamic> toJson() {
-    return {
+    final json = <String, dynamic>{
       "venue_id": venueId,
       "venue_name": venueName,
       "crowd_level": crowdLevel,
-      "safety_level": safetyLevel,
-      "music_type": musicType,
-      "queue_length": queueLength,
       "yiyo_status": yiyoStatus,
-      "parking_availability": parkingAvailability,
-      "parking_safety": parkingSafety,
-      "parking_note": parkingNote,
-      "comment": comment,
-      "reported_at": reportedAt,
     };
+
+    if (safetyLevel != null) {
+      json["safety_level"] =
+          safetyLevel;
+    }
+
+    if (musicType != null) {
+      json["music_type"] =
+          musicType;
+    }
+
+    if (queueLength != null) {
+      json["queue_length"] =
+          queueLength;
+    }
+
+    if (parkingAvailability != null) {
+      json["parking_availability"] =
+          parkingAvailability;
+    }
+
+    if (parkingSafety != null) {
+      json["parking_safety"] =
+          parkingSafety;
+    }
+
+    if (parkingNote.trim().isNotEmpty) {
+      json["parking_note"] =
+          parkingNote.trim();
+    }
+
+    if (comment.trim().isNotEmpty) {
+      json["comment"] =
+          comment.trim();
+    }
+
+    if (reportedAt != null &&
+        reportedAt!.trim().isNotEmpty) {
+      json["reported_at"] =
+          reportedAt!.trim();
+    }
+
+    return json;
   }
 }

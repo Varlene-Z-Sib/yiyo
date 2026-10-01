@@ -60,6 +60,20 @@ ReportFlagReason = Literal[
 
 
 class VibeReportCreate(BaseModel):
+    """
+    Quick Vibe contract.
+
+    Minimum useful contribution:
+    - venue
+    - YIYO status
+    - crowd level
+
+    Everything else is optional enrichment.
+
+    This avoids forcing users to invent information they
+    do not know just to submit a useful real-time update.
+    """
+
     model_config = ConfigDict(
         extra="forbid",
         str_strip_whitespace=True,
@@ -75,14 +89,22 @@ class VibeReportCreate(BaseModel):
         max_length=200,
     )
 
+    # Quick Vibe required fields
     crowd_level: CrowdLevel
-    safety_level: SafetyLevel
-    music_type: MusicType
-    queue_length: QueueLength
     yiyo_status: YiyoStatus
 
-    parking_availability: ParkingAvailability
-    parking_safety: ParkingSafety
+    # Optional detailed signals
+    safety_level: SafetyLevel | None = None
+    music_type: MusicType | None = None
+    queue_length: QueueLength | None = None
+
+    parking_availability: (
+        ParkingAvailability | None
+    ) = None
+
+    parking_safety: (
+        ParkingSafety | None
+    ) = None
 
     parking_note: str = Field(
         default="",
@@ -94,8 +116,8 @@ class VibeReportCreate(BaseModel):
         max_length=500,
     )
 
-    # Kept for compatibility with Flutter.
-    # The backend uses server time as authoritative.
+    # Kept for Flutter compatibility.
+    # Server time remains authoritative.
     reported_at: str | None = Field(
         default=None,
         max_length=64,
