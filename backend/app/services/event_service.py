@@ -14,6 +14,11 @@ from app.firebase_config import db
 from app.models.authorization_model import (
     EffectivePermissions,
 )
+from app.services.authorization_service import (
+    authorization_from_user,
+    can_manage_venue,
+    get_effective_permissions,
+)
 
 from app.models.event_model import (
     EventCreate,
@@ -21,10 +26,6 @@ from app.models.event_model import (
     EventStatus,
 )
 
-from app.services.authorization_service import (
-    can_manage_venue,
-    get_effective_permissions,
-)
 
 
 EVENTS_COLLECTION = "events"
@@ -144,6 +145,32 @@ def event_visibility_end(
             hours=8
         )
     )
+def can_cancel_event_with_context(
+    *,
+    actor_uid: str,
+    organizer_uid: str,
+    is_super_admin: bool,
+    manages_venue: bool,
+) -> bool:
+    if is_super_admin:
+        return True
+
+    if actor_uid == organizer_uid:
+        return True
+
+    if manages_venue:
+        return True
+
+    return False
+
+
+def is_event_status_cancellable(
+    status: str,
+) -> bool:
+    return status in {
+        EventStatus.PENDING.value,
+        EventStatus.PUBLISHED.value,
+    }
 
 def create_event(
     request: EventCreate,
@@ -557,6 +584,450 @@ def approve_event(
             int(
                 now.timestamp()
             ),
+    }
+
+    ref.set(
+        update,
+        merge=True,
+    )
+
+    data.update(
+        update
+    )
+
+    return EventResponse(
+        id=event_id,
+        **data,
+    )
+
+def get_user_events(
+    current_user: dict,
+    limit: int = 50,
+) -> list[EventResponse]:
+    if limit < 1 or limit > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid event limit",
+        )
+
+    auth = authorization_from_user(
+        current_user
+    )
+
+    docs = (
+        db.collection(
+            EVENTS_COLLECTION
+        )
+        .where(
+            filter=FieldFilter(
+                "organizer_uid",
+                "==",
+                auth.uid,
+            )
+        )
+        .stream()
+    )
+
+    events = []
+
+    for doc in docs:
+        data = (
+            doc.to_dict()
+            or {}
+        )
+
+        try:
+            events.append(
+                EventResponse(
+                    id=doc.id,
+                    **data,
+                )
+            )
+
+        except Exception as e:
+            print(
+                "[WARN] Invalid user event "
+                f"{doc.id}: {e}"
+            )
+
+    events.sort(
+        key=lambda event:
+            event.created_at_unix,
+        reverse=True,
+    )
+
+    return events[:limit]
+
+
+def cancel_event(
+    event_id: str,
+    current_user: dict,
+) -> EventResponse:
+    auth = authorization_from_user(
+        current_user
+    )
+
+    ref = (
+        db.collection(
+            EVENTS_COLLECTION
+        )
+        .document(
+            event_id
+        )
+    )
+
+    snapshot = ref.get()
+
+    if not snapshot.exists:
+        raise HTTPException(
+            status_code=404,
+            detail="Event not found",
+        )
+
+    data = (
+        snapshot.to_dict()
+        or {}
+    )
+
+    organizer_uid = str(
+        data.get(
+            "organizer_uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    venue_id = str(
+        data.get(
+            "venue_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    manages_venue = False
+
+    # Avoid an unnecessary Firestore membership query
+    # when the user is already the creator or super admin.
+    if (
+        not auth.is_super_admin
+        and auth.uid != organizer_uid
+        and venue_id
+    ):
+        manages_venue = (
+            can_manage_venue(
+                current_user,
+                venue_id,
+            )
+        )
+
+    allowed = (
+        can_cancel_event_with_context(
+            actor_uid=auth.uid,
+            organizer_uid=
+                organizer_uid,
+            is_super_admin=
+                auth.is_super_admin,
+            manages_venue=
+                manages_venue,
+        )
+    )
+
+    if not allowed:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You cannot cancel "
+                "this event"
+            ),
+        )
+
+    current_status = str(
+        data.get(
+            "status",
+            "",
+        )
+        or ""
+    )
+
+    if (
+        current_status
+        == EventStatus.CANCELLED.value
+    ):
+        return EventResponse(
+            id=event_id,
+            **data,
+        )
+
+    if not is_event_status_cancellable(
+        current_status
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "This event cannot "
+                "be cancelled"
+            ),
+        )
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    update = {
+        "status":
+            EventStatus.CANCELLED.value,
+
+        "cancelled_at":
+            now.isoformat(),
+
+        "cancelled_at_unix":
+            int(
+                now.timestamp()
+            ),
+
+        "cancelled_by_uid":
+            auth.uid,
+    }
+
+    ref.set(
+        update,
+        merge=True,
+    )
+
+    data.update(
+        update
+    )
+
+    return EventResponse(
+        id=event_id,
+        **data,
+    )
+
+def can_review_event_with_context(
+    *,
+    is_super_admin: bool,
+    managed_venue_ids: list[str],
+    venue_id: str,
+) -> bool:
+    if is_super_admin:
+        return True
+
+    return venue_id in managed_venue_ids
+
+
+def is_event_pending_approval(
+    status: str,
+) -> bool:
+    return (
+        status
+        == EventStatus.PENDING.value
+    )
+
+def get_pending_event_approvals(
+    current_user: dict,
+    limit: int = 50,
+) -> list[EventResponse]:
+    if limit < 1 or limit > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid event limit",
+        )
+
+    permissions = (
+        get_effective_permissions(
+            current_user
+        )
+    )
+
+    if (
+        not permissions.super_admin
+        and not permissions.managed_venue_ids
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You do not have permission "
+                "to review events"
+            ),
+        )
+
+    # Cheap MVP query:
+    #
+    # Query only pending events, then filter
+    # venue access in Python. Firestore creates
+    # single-field indexes automatically, so
+    # this avoids another composite index.
+    docs = (
+        db.collection(
+            EVENTS_COLLECTION
+        )
+        .where(
+            filter=FieldFilter(
+                "status",
+                "==",
+                EventStatus.PENDING.value,
+            )
+        )
+        .stream()
+    )
+
+    events = []
+
+    for doc in docs:
+        data = (
+            doc.to_dict()
+            or {}
+        )
+
+        venue_id = str(
+            data.get(
+                "venue_id",
+                "",
+            )
+            or ""
+        ).strip()
+
+        if not can_review_event_with_context(
+            is_super_admin=
+                permissions.super_admin,
+
+            managed_venue_ids=
+                permissions.managed_venue_ids,
+
+            venue_id=
+                venue_id,
+        ):
+            continue
+
+        try:
+            events.append(
+                EventResponse(
+                    id=doc.id,
+                    **data,
+                )
+            )
+
+        except Exception as e:
+            print(
+                "[WARN] Invalid pending "
+                "event "
+                f"{doc.id}: {e}"
+            )
+
+    events.sort(
+        key=lambda event:
+            event.created_at_unix,
+        reverse=True,
+    )
+
+    return events[:limit]
+
+
+def reject_event(
+    event_id: str,
+    current_user: dict,
+) -> EventResponse:
+    ref = (
+        db.collection(
+            EVENTS_COLLECTION
+        )
+        .document(
+            event_id
+        )
+    )
+
+    snapshot = ref.get()
+
+    if not snapshot.exists:
+        raise HTTPException(
+            status_code=404,
+            detail="Event not found",
+        )
+
+    data = (
+        snapshot.to_dict()
+        or {}
+    )
+
+    venue_id = str(
+        data.get(
+            "venue_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not venue_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Event has no venue"
+            ),
+        )
+
+    if not can_manage_venue(
+        current_user,
+        venue_id,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You cannot review "
+                "events for this venue"
+            ),
+        )
+
+    current_status = str(
+        data.get(
+            "status",
+            "",
+        )
+        or ""
+    )
+
+    if (
+        current_status
+        == EventStatus.REJECTED.value
+    ):
+        return EventResponse(
+            id=event_id,
+            **data,
+        )
+
+    if not is_event_pending_approval(
+        current_status
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Only pending events "
+                "can be rejected"
+            ),
+        )
+
+    auth = authorization_from_user(
+        current_user
+    )
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    update = {
+        "status":
+            EventStatus.REJECTED.value,
+
+        "rejected_at":
+            now.isoformat(),
+
+        "rejected_at_unix":
+            int(
+                now.timestamp()
+            ),
+
+        "rejected_by_uid":
+            auth.uid,
     }
 
     ref.set(

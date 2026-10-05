@@ -51,11 +51,16 @@ from app.services.yiyo_logic import (
 from app.models.event_model import (
     EventCreate,
 )
+
 from app.services.event_service import (
     approve_event,
+    cancel_event,
     create_event,
+    get_pending_event_approvals,
     get_public_event,
     get_upcoming_events,
+    get_user_events,
+    reject_event,
 )
 
 from app.models.event_engagement_model import (
@@ -1196,6 +1201,38 @@ def get_my_profile(
 
     return profile.model_dump()
 
+@app.get("/me/event-approvals")
+def get_my_event_approvals(
+    limit: int = Query(
+        50,
+        ge=1,
+        le=100,
+    ),
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    events = (
+        get_pending_event_approvals(
+            current_user=
+                current_user,
+            limit=
+                limit,
+        )
+    )
+
+    return {
+        "count":
+            len(events),
+
+        "events": [
+            event.model_dump(
+                mode="json"
+            )
+            for event in events
+        ],
+    }
 
 @app.get("/me/reports")
 def get_my_reports(
@@ -1232,6 +1269,35 @@ def get_my_reports(
         "reports": [
             report.model_dump()
             for report in reports
+        ],
+    }
+
+@app.get("/me/events")
+def get_my_events(
+    limit: int = Query(
+        50,
+        ge=1,
+        le=100,
+    ),
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    events = get_user_events(
+        current_user=current_user,
+        limit=limit,
+    )
+
+    return {
+        "count":
+            len(events),
+
+        "events": [
+            event.model_dump(
+                mode="json"
+            )
+            for event in events
         ],
     }
 
@@ -1377,6 +1443,25 @@ def list_upcoming_events(
         ],
     }
 
+@app.post(
+    "/events/{event_id}/cancel"
+)
+def cancel_yiyo_event(
+    event_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    event = cancel_event(
+        event_id=event_id,
+        current_user=
+            current_user,
+    )
+
+    return event.model_dump(
+        mode="json"
+    )
 
 @app.get("/events/{event_id}")
 def get_event(
@@ -1414,6 +1499,28 @@ def create_yiyo_event(
         current_user=current_user,
         canonical_venue=
             canonical_venue,
+    )
+
+    return event.model_dump(
+        mode="json"
+    )
+
+@app.post(
+    "/events/{event_id}/reject"
+)
+def reject_yiyo_event(
+    event_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    event = reject_event(
+        event_id=
+            event_id,
+
+        current_user=
+            current_user,
     )
 
     return event.model_dump(

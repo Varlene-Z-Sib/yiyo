@@ -20,8 +20,12 @@ from app.models.event_model import (
 )
 
 from app.services.event_service import (
+    can_cancel_event_with_context,
+    can_review_event_with_context,
     determine_initial_event_status,
     event_visibility_end,
+    is_event_pending_approval,
+    is_event_status_cancellable,
     validate_event_is_future,
 )
 
@@ -299,4 +303,147 @@ def test_event_without_end_remains_visible_for_eight_hours():
         + timedelta(
             hours=8
         )
+    )
+
+def test_event_creator_can_cancel():
+    assert (
+        can_cancel_event_with_context(
+            actor_uid="user_123",
+            organizer_uid="user_123",
+            is_super_admin=False,
+            manages_venue=False,
+        )
+        is True
+    )
+
+
+def test_super_admin_can_cancel_any_event():
+    assert (
+        can_cancel_event_with_context(
+            actor_uid="admin_123",
+            organizer_uid="user_123",
+            is_super_admin=True,
+            manages_venue=False,
+        )
+        is True
+    )
+
+
+def test_venue_manager_can_cancel_venue_event():
+    assert (
+        can_cancel_event_with_context(
+            actor_uid="manager_123",
+            organizer_uid="promoter_123",
+            is_super_admin=False,
+            manages_venue=True,
+        )
+        is True
+    )
+
+
+def test_unrelated_user_cannot_cancel_event():
+    assert (
+        can_cancel_event_with_context(
+            actor_uid="random_123",
+            organizer_uid="promoter_123",
+            is_super_admin=False,
+            manages_venue=False,
+        )
+        is False
+    )
+
+
+def test_only_pending_or_published_events_are_cancellable():
+    assert (
+        is_event_status_cancellable(
+            "pending"
+        )
+        is True
+    )
+
+    assert (
+        is_event_status_cancellable(
+            "published"
+        )
+        is True
+    )
+
+    assert (
+        is_event_status_cancellable(
+            "cancelled"
+        )
+        is False
+    )
+
+    assert (
+        is_event_status_cancellable(
+            "rejected"
+        )
+        is False
+    )
+
+def test_super_admin_can_review_any_venue():
+    assert (
+        can_review_event_with_context(
+            is_super_admin=True,
+            managed_venue_ids=[],
+            venue_id="venue_123",
+        )
+        is True
+    )
+
+
+def test_venue_manager_can_review_managed_venue():
+    assert (
+        can_review_event_with_context(
+            is_super_admin=False,
+            managed_venue_ids=[
+                "venue_123",
+            ],
+            venue_id="venue_123",
+        )
+        is True
+    )
+
+
+def test_venue_manager_cannot_review_other_venue():
+    assert (
+        can_review_event_with_context(
+            is_super_admin=False,
+            managed_venue_ids=[
+                "venue_123",
+            ],
+            venue_id="venue_other",
+        )
+        is False
+    )
+
+
+def test_only_pending_event_is_awaiting_approval():
+    assert (
+        is_event_pending_approval(
+            "pending"
+        )
+        is True
+    )
+
+    assert (
+        is_event_pending_approval(
+            "published"
+        )
+        is False
+    )
+
+    assert (
+        is_event_pending_approval(
+            "rejected"
+        )
+        is False
+    )
+
+    assert (
+        is_event_pending_approval(
+            "cancelled"
+        )
+        is False
     )

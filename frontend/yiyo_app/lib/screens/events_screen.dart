@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/yiyo_event.dart';
 import '../services/api_service.dart';
 import 'event_details_screen.dart';
-
+import '../models/app_permissions.dart';
+import 'create_event_screen.dart';
+import 'my_events_screen.dart';
+import 'event_approvals_screen.dart';
 
 class EventsScreen extends StatefulWidget {
   const EventsScreen({
@@ -24,14 +27,99 @@ class _EventsScreenState
 
   List<YiyoEvent> _events = [];
 
+  AppPermissions? _permissions;
 
   @override
   void initState() {
     super.initState();
 
     _loadEvents();
+    _loadPermissions();
   }
 
+ Future<void> _loadPermissions() async {
+  try {
+    final permissions =
+        await ApiService
+            .getMyPermissions();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _permissions =
+          permissions;
+    });
+  } catch (_) {
+    // Event discovery should remain available
+    // even if permission loading fails.
+  }
+}
+
+
+Future<void> _openCreateEvent()
+    async {
+  final event =
+      await Navigator.of(
+    context,
+  ).push<YiyoEvent>(
+    MaterialPageRoute(
+      builder: (_) =>
+          const CreateEventScreen(),
+    ),
+  );
+
+  if (
+      event == null ||
+      !mounted) {
+    return;
+  }
+
+  if (event.isPublished) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      const SnackBar(
+        content:
+            Text(
+          "Event published.",
+        ),
+      ),
+    );
+
+    await _refresh();
+  } else {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      const SnackBar(
+        content:
+            Text(
+          "Event submitted for approval.",
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _openMyEvents()
+    async {
+  await Navigator.of(
+    context,
+  ).push(
+    MaterialPageRoute(
+      builder: (_) =>
+          const MyEventsScreen(),
+    ),
+  );
+
+  if (!mounted) {
+    return;
+  }
+
+  await _refresh();
+}
 
   Future<void> _loadEvents() async {
     try {
@@ -378,6 +466,23 @@ class _EventsScreenState
     );
   }
 
+Future<void> _openApprovals()
+    async {
+  await Navigator.of(
+    context,
+  ).push(
+    MaterialPageRoute(
+      builder: (_) =>
+          const EventApprovalsScreen(),
+    ),
+  );
+
+  if (!mounted) {
+    return;
+  }
+
+  await _refresh();
+}
 
   @override
   Widget build(
@@ -389,6 +494,52 @@ class _EventsScreenState
             const Text(
           "Events",
         ),
+
+        actions: [
+          if (
+              _permissions?.manageVenues ==
+                  true ||
+              _permissions?.superAdmin ==
+                  true)
+            IconButton(
+              tooltip:
+                  "Event approvals",
+              onPressed:
+                  _openApprovals,
+              icon:
+                  const Icon(
+                Icons.fact_check_outlined,
+              ),
+            ),
+
+          if (_permissions
+                  ?.createEvents ==
+              true)
+            IconButton(
+              tooltip:
+                  "My events",
+              onPressed:
+                  _openMyEvents,
+              icon:
+                  const Icon(
+                Icons.event_note_outlined,
+              ),
+            ),
+
+          if (_permissions
+                  ?.createEvents ==
+              true)
+            IconButton(
+              tooltip:
+                  "Create event",
+              onPressed:
+                  _openCreateEvent,
+              icon:
+                  const Icon(
+                Icons.add_circle_outline,
+              ),
+            ),
+        ],
       ),
       body:
           _buildBody(),
