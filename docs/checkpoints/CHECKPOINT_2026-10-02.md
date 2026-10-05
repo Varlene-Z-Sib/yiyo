@@ -2,118 +2,146 @@
 
 ## Purpose
 
-This checkpoint records the current YIYO implementation before deeper investigation of a venue-map regression.
+This checkpoint records the YIYO implementation after completion of the roles, permissions, business-membership, and Events backend foundation.
 
-Development is intentionally being paused at this point so the repository can be reviewed as a whole rather than continuing to patch the map based on assumptions.
+A Discover-map issue observed around this checkpoint was subsequently investigated and resolved. The cause was backend IP configuration rather than the Flutter map implementation.
 
-## Current Git Work
+## Current Development Branch
 
-The current development work has focused on:
-
-- Global application roles
-- Business memberships
-- Event permissions
-- Events backend
-- Event engagement
-- Event discovery lifetime
-- Preparation for the Events frontend
+`feat/roles-permissions`
 
 ## Backend — Implemented
 
 ### Application Roles
 
-Global roles are supported through Firebase authentication/custom claims:
+Global application authority is managed separately from business relationships.
+
+Supported application roles:
 
 - `user`
 - `moderator`
 - `super_admin`
 
-The `super_admin` role is intended for internal/developer administration and can bypass normal venue/event restrictions.
+Firebase custom claims are used for application-level authority.
+
+`super_admin` is intended for internal/developer administration and can bypass normal venue/event restrictions.
 
 ### Business Memberships
 
-Business permissions are kept separate from global application roles.
+Business permissions are stored separately from application roles.
 
-Supported membership types:
+Supported memberships:
 
 - `promoter`
 - `venue_manager`
 
+Promoters are organiser identities.
+
 Venue managers are associated with specific venues.
 
-Promoters are organiser identities and are not automatically treated as venue owners/managers.
+This separation allows a normal application user to also have business permissions without incorrectly giving them global administrative access.
 
 ### Effective Permissions
 
-The backend can derive capabilities such as:
+The backend derives effective permissions from:
+
+Firebase authentication/custom claims
+
+plus
+
+Firestore business memberships.
+
+Current derived capabilities include:
 
 - Moderate content
 - Super-admin access
 - Create events
 - Manage venues
 
-The backend remains the authority for permissions. Flutter UI visibility is not considered a security boundary.
+The FastAPI backend remains the authority for permissions.
 
-### Event Creation Rules
+Flutter UI visibility is not considered a security boundary.
 
-Current intended behaviour:
+## Event Creation Rules
 
-**Normal user**
-- Cannot create events
+### Normal user
 
-**Promoter**
-- Can submit events
-- Event initially enters `pending` state
+Cannot create events.
 
-**Venue manager**
-- Can create events for assigned venues
-- Events for their own venue can publish immediately
+### Promoter
 
-**Super admin**
-- Can create/publish events for any venue
+Can submit events.
 
-### Event Approval
+Promoter-created events initially enter:
+
+`pending`
+
+They require approval before becoming publicly visible.
+
+### Venue manager
+
+Can create events for venues they manage.
+
+Events created for an assigned venue can publish immediately.
+
+### Super admin
+
+Can create and publish events for any venue.
+
+## Event Approval
 
 Pending promoter events can be approved by:
 
 - The appropriate venue manager
 - A super admin
 
-### Event API Foundation
+This prevents a promoter from automatically publishing an event on behalf of a venue they do not control.
 
-The backend currently includes the Events API foundation for:
+## Events API Foundation
 
-- Listing public events
-- Reading a public event
-- Creating an event
-- Approving an event
+The backend currently supports the foundation for:
+
+- Public event listing
+- Public event details
+- Authenticated event creation
+- Event approval
 - Hype
 - Going
-- Reading personalised event engagement state
+- Personalised event engagement state
 
-### Hype and Going
+## Hype and Going
 
-Engagement is stored separately from event documents.
+Event engagement is stored separately from the event document.
 
-Each account can have at most:
+Each user account may have at most:
 
 - One Hype reaction per event
 - One Going reaction per event
 
 Deterministic reaction document IDs are used to prevent duplicate reactions.
 
-Firestore transactions are used when toggling engagement so event counters remain consistent during concurrent activity.
+Firestore transactions are used when reactions are toggled so event counters remain consistent during concurrent activity.
 
-### Event Discovery Lifetime
+Event documents contain materialised counters:
 
-Events no longer disappear from discovery immediately after their start time.
+- `hype_count`
+- `going_count`
+
+## Event Discovery Lifetime
+
+Events should remain discoverable while they are actually happening.
 
 Current rule:
 
-- If an explicit event end time exists, discovery remains active until that time.
-- If no end time exists, the event remains discoverable for eight hours after its start time.
+If an explicit event end time exists:
 
-This is intended to support nightlife events that continue late into the night or early morning.
+`visible until ends_at`
+
+If an explicit end time does not exist:
+
+`visible until eight hours after starts_at`
+
+This prevents nightlife events from disappearing from YIYO immediately after their scheduled start time.
 
 ## Backend Verification
 
@@ -121,107 +149,199 @@ Last verified backend test result:
 
 **98 tests passed**
 
-The backend Events/roles/permissions foundation was passing before this checkpoint.
+The roles, permissions, memberships, Events, and engagement foundation passed the backend test suite at this checkpoint.
 
-## Frontend Status
+## Frontend State
 
-The newer Events/navigation UI work has been backed out to return the app closer to the state immediately following the backend changes.
+The experimental Events frontend and bottom-navigation implementation were intentionally backed out before this checkpoint.
 
-Any experimental bottom-navigation changes should not be treated as the source of truth unless they are present in the committed repository.
+The authenticated application continues to enter the existing Discover `MapScreen`.
 
-A fresh repository inspection should determine the exact frontend state.
+The Events backend therefore exists before the production Events frontend.
 
-## Known Blocking Issue — Discover Map
+This was intentional so the existing Discover experience could be stabilised before adding the Events interface again.
 
-The Google Map itself renders, but the expected YIYO discovery behaviour is currently not functioning correctly.
+## Resolved Issue — Discover Map / Missing Markers
 
-Observed symptoms include:
+An apparent Discover regression was investigated after this checkpoint.
 
-- Google Map tiles render.
-- Venue markers are not appearing as expected.
-- The map is not reliably moving to the user's current location.
-- Nearby venues are not appearing in the normal discovery experience.
+Observed symptoms included:
 
-The issue remains present after backing out the most recent navigation/UI changes.
+- Google Map tiles rendered.
+- Venue markers did not appear.
+- The map did not move to the expected current location.
+- Nearby venues did not populate correctly.
 
-Therefore, the cause should **not currently be assumed to be the new Events navigation work**.
+Initial investigation considered:
 
-The map should be investigated from the underlying flow:
+- `MapScreen`
+- `DraggableScrollableController`
+- Google Maps rendering
+- Flutter navigation changes
+- Venue parsing
+- Backend venue processing
 
-1. Location permission/service state
-2. Geolocator result
-3. `_currentLocation`
-4. `/venues` request
-5. Backend response
-6. Flutter venue parsing
-7. Marker construction
-8. `setState`
-9. GoogleMap `markers` state
-10. Camera update
+The repository was then rolled back to the frontend state immediately following the backend changes.
 
-The repository and runtime logs should be used to identify exactly where this chain stops.
+The problem remained.
 
-## Previously Observed Flutter Error
+Further tracing showed that the Flutter marker pipeline only executes after:
 
-During an experimental navigation change, Flutter produced:
+`ApiService.getVenues()`
+
+successfully completes.
+
+The actual cause was **backend IP configuration**.
+
+The Flutter application was pointing at an incorrect or unreachable backend address, preventing the expected `/venues` request flow from completing correctly.
+
+After correcting the IP/backend configuration:
+
+- The map worked.
+- Current-location behaviour worked.
+- Venue loading worked.
+- Venue markers worked.
+
+No Google Maps or `MapScreen` rewrite was required to resolve the marker issue.
+
+### Important lesson
+
+For physical-device development, the Flutter application must use a backend address reachable from the device.
+
+`127.0.0.1`
+
+inside an Android device refers to the Android device itself, not the development PC.
+
+The runtime `BACKEND_BASE_URL` configuration must therefore point to the correct reachable backend address.
+
+## Separate UI Lifecycle Observation
+
+During experimental navigation work, Flutter produced:
 
 `Draggable scrollable controller is already attached to a sheet.`
 
-This involved the `DraggableScrollableController` used by the map's Top Nearby Spots panel.
+The map contains a `DraggableScrollableController` for the Top Nearby Spots panel.
 
-However, because venue markers remain missing after backing out the later navigation work, this error should be treated as a separate UI lifecycle issue until proven otherwise.
+Because the actual marker/location failure was resolved through backend IP configuration, this controller issue should be treated as a separate UI lifecycle concern rather than the root cause of the venue-loading problem.
 
-It should not currently be assumed to explain the marker regression.
+It can be addressed independently if reproduced.
 
 ## Android / VS Code Diagnostic
 
-VS Code has also shown a Java/Gradle diagnostic referring to a missing Red Hat Java extension initialization script under:
+VS Code has also displayed a Java/Gradle diagnostic referring to a missing Red Hat Java extension initialisation script under:
 
 `globalStorage\redhat.java\...init.gradle`
 
-The Android application has still been able to compile and launch.
+The Android application can still build and launch.
 
-This diagnostic has therefore not been established as the cause of the runtime map/marker issue.
+This diagnostic has not been established as a runtime YIYO failure and should be investigated separately rather than mixed with product debugging.
 
-It can be cleaned up separately after the map problem is understood.
+## Verified Product Foundation
 
-## Next Investigation
+At this checkpoint the following major systems have been established:
 
-Before additional feature development:
+Firebase authentication
 
-1. Inspect the fresh repository ZIP.
-2. Compare the repository against this checkpoint.
-3. Confirm the actual active `MapScreen`.
-4. Trace startup location acquisition.
-5. Confirm whether `/venues` is called.
-6. Inspect the `/venues` response.
-7. Confirm Venue model parsing.
-8. Confirm markers are generated.
-9. Identify the first point where expected state differs from actual state.
-10. Apply the smallest practical fix.
-11. Re-run backend tests.
-12. Run Flutter analyzer/tests.
-13. Verify Discover on-device.
-14. Resume Events frontend only after Discover is stable.
+Venue discovery
 
-## Product Roadmap After Map Stabilisation
+Google Maps
 
-Once Discover is stable again:
+Google Places-backed venue discovery
 
-1. Events discovery UI
-2. Event detail screen
-3. Hype / Going frontend integration
-4. Organiser / venue event creation experience
-5. Admin and moderation tooling
-6. Google Play closed testing
-7. Partner venue/event beta
-8. Android soft launch
-9. iOS/TestFlight work in parallel
+Venue markers
+
+Venue details
+
+Quick Vibe contributions
+
+Current Vibe community summaries
+
+Contribution freshness
+
+Contribution moderation and reporting
+
+Contributor profiles
+
+Contribution history
+
+Application roles
+
+Moderator authority
+
+Super-admin authority
+
+Promoter memberships
+
+Venue-manager memberships
+
+Event permissions
+
+Event creation backend
+
+Event approval backend
+
+Hype backend
+
+Going backend
+
+Event discovery lifetime
+
+## Next Development Stage
+
+The next feature is the production Events frontend.
+
+Recommended implementation order:
+
+Events data models
+
+→ Events API integration
+
+→ Events discovery screen
+
+→ Event details
+
+→ Hype / Going controls
+
+→ Navigation integration
+
+→ Super-admin event creation
+
+→ Promoter event creation
+
+→ Venue-manager event management
+
+→ Real event end-to-end test
+
+## Events Product Goal
+
+The initial Events experience should support YIYO's soft-launch strategy.
+
+Users should be able to:
+
+Discover nightlife events
+
+See where and when they are happening
+
+Build Hype before the night
+
+Indicate they are Going
+
+Open the associated venue
+
+Eventually see the Current Vibe while the event is happening
+
+Organisers and venues should eventually be able to use event engagement as a useful marketing signal.
 
 ## Development Principle
 
 The repository is the source of truth for implementation.
 
-Do not continue patching the map from assumptions or historical snippets.
+When a regression occurs:
 
-The next development session should begin with a fresh inspection of the committed repository.
+Identify the first broken point in the actual runtime path.
+
+Do not rewrite working systems based on assumptions.
+
+Apply the smallest practical fix.
+
+Verify with automated tests and on-device testing before continuing feature development.
