@@ -3,13 +3,17 @@ import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/app_permissions.dart';
 import '../models/current_vibe_summary.dart';
+import '../models/event_engagement.dart';
 import '../models/user_contribution.dart';
 import '../models/user_profile.dart';
 import '../models/venue.dart';
 import '../models/vibe_report.dart';
 import '../models/vibe_report_request.dart';
+import '../models/yiyo_event.dart';
 import 'auth_service.dart';
+
 
 class ApiException implements Exception {
   final int statusCode;
@@ -32,6 +36,7 @@ class ApiService {
       dotenv.env["BACKEND_BASE_URL"] ??
       "http://127.0.0.1:8000";
 
+
   static Future<Map<String, String>>
       _authHeaders() async {
     final token =
@@ -44,16 +49,20 @@ class ApiService {
     };
   }
 
+
   static String _errorMessage(
     http.Response response, {
     required String fallback,
   }) {
     try {
       final decoded =
-          jsonDecode(response.body);
+          jsonDecode(
+        response.body,
+      );
 
       if (decoded is Map<String, dynamic>) {
-        final detail = decoded["detail"];
+        final detail =
+            decoded["detail"];
 
         if (detail != null) {
           return detail.toString();
@@ -66,6 +75,11 @@ class ApiService {
     return fallback;
   }
 
+
+  // -------------------------------------------------------------------------
+  // Venues
+  // -------------------------------------------------------------------------
+
   static Future<List<Venue>> getVenues({
     required double lat,
     required double lng,
@@ -75,35 +89,46 @@ class ApiService {
     );
 
     final response =
-        await http.get(uri);
+        await http.get(
+      uri,
+    );
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
-        message: _errorMessage(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
           response,
-          fallback: "Failed to load venues",
+          fallback:
+              "Failed to load venues",
         ),
       );
     }
 
     final data =
-        jsonDecode(response.body)
-            as Map<String, dynamic>;
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
 
     final venuesJson =
-        data["venues"] as List<dynamic>? ?? [];
+        data["venues"]
+                as List<dynamic>? ??
+            [];
 
     return venuesJson
         .map(
-          (item) => Venue.fromJson(
+          (item) =>
+              Venue.fromJson(
             item as Map<String, dynamic>,
           ),
         )
         .toList();
   }
 
-  static Future<List<Venue>> getYiyoVenues({
+
+  static Future<List<Venue>>
+      getYiyoVenues({
     required double lat,
     required double lng,
   }) async {
@@ -113,12 +138,16 @@ class ApiService {
     );
 
     final response =
-        await http.get(uri);
+        await http.get(
+      uri,
+    );
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
-        message: _errorMessage(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
           response,
           fallback:
               "Failed to load YIYO venues",
@@ -127,20 +156,25 @@ class ApiService {
     }
 
     final data =
-        jsonDecode(response.body)
-            as Map<String, dynamic>;
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
 
     final venuesJson =
-        data["venues"] as List<dynamic>? ?? [];
+        data["venues"]
+                as List<dynamic>? ??
+            [];
 
     return venuesJson
         .map(
-          (item) => Venue.fromJson(
+          (item) =>
+              Venue.fromJson(
             item as Map<String, dynamic>,
           ),
         )
         .toList();
   }
+
 
   static Future<Map<String, dynamic>>
       searchVenues({
@@ -158,21 +192,27 @@ class ApiService {
     );
 
     final response =
-        await http.get(uri);
+        await http.get(
+      uri,
+    );
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
-        message: _errorMessage(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
           response,
-          fallback: "Search failed",
+          fallback:
+              "Search failed",
         ),
       );
     }
 
     final data =
-        jsonDecode(response.body)
-            as Map<String, dynamic>;
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
 
     final bestMatchJson =
         data["best_match"];
@@ -193,42 +233,59 @@ class ApiService {
     final relatedVenues =
         relatedJson
             .map(
-              (item) => Venue.fromJson(
+              (item) =>
+                  Venue.fromJson(
                 item as Map<String, dynamic>,
               ),
             )
             .toList();
 
     return {
-      "source": data["source"],
+      "source":
+          data["source"],
       "used_places_call":
-          data["used_places_call"] ?? false,
+          data["used_places_call"] ??
+              false,
       "enriched_area":
-          data["enriched_area"] ?? false,
-      "best_match": bestMatch,
-      "related_venues": relatedVenues,
+          data["enriched_area"] ??
+              false,
+      "best_match":
+          bestMatch,
+      "related_venues":
+          relatedVenues,
     };
   }
+
+
+  // -------------------------------------------------------------------------
+  // Vibe reports
+  // -------------------------------------------------------------------------
 
   static Future<void> submitVibeReport(
     VibeReportRequest report,
   ) async {
     final uri =
-        Uri.parse("$baseUrl/reports");
+        Uri.parse(
+      "$baseUrl/reports",
+    );
 
     final response =
         await http.post(
       uri,
-      headers: await _authHeaders(),
-      body: jsonEncode(
+      headers:
+          await _authHeaders(),
+      body:
+          jsonEncode(
         report.toJson(),
       ),
     );
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
-        message: _errorMessage(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
           response,
           fallback:
               "Failed to submit report",
@@ -236,6 +293,7 @@ class ApiService {
       );
     }
   }
+
 
   static Future<Map<String, dynamic>>
       getVenueReports(
@@ -246,12 +304,16 @@ class ApiService {
     );
 
     final response =
-        await http.get(uri);
+        await http.get(
+      uri,
+    );
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
-        message: _errorMessage(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
           response,
           fallback:
               "Failed to fetch reports",
@@ -260,16 +322,20 @@ class ApiService {
     }
 
     final data =
-        jsonDecode(response.body)
-            as Map<String, dynamic>;
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
 
     final reportsJson =
-        data["reports"] as List<dynamic>? ?? [];
+        data["reports"]
+                as List<dynamic>? ??
+            [];
 
     final reports =
         reportsJson
             .map(
-              (item) => VibeReport.fromJson(
+              (item) =>
+                  VibeReport.fromJson(
                 item as Map<String, dynamic>,
               ),
             )
@@ -287,13 +353,18 @@ class ApiService {
 
     return {
       "count":
-          data["count"] ?? reports.length,
+          data["count"] ??
+              reports.length,
       "yiyo_badge":
-          data["yiyo_badge"] ?? "MID",
-      "summary": summary,
-      "reports": reports,
+          data["yiyo_badge"] ??
+              "MID",
+      "summary":
+          summary,
+      "reports":
+          reports,
     };
   }
+
 
   static Future<Map<String, dynamic>>
       flagReport({
@@ -309,19 +380,25 @@ class ApiService {
     final response =
         await http.post(
       uri,
-      headers: await _authHeaders(),
-      body: jsonEncode(
+      headers:
+          await _authHeaders(),
+      body:
+          jsonEncode(
         {
-          "reason": reason,
-          "details": details.trim(),
+          "reason":
+              reason,
+          "details":
+              details.trim(),
         },
       ),
     );
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
-        message: _errorMessage(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
           response,
           fallback:
               "Failed to report this update",
@@ -334,21 +411,31 @@ class ApiService {
     ) as Map<String, dynamic>;
   }
 
+
+  // -------------------------------------------------------------------------
+  // Profile
+  // -------------------------------------------------------------------------
+
   static Future<UserProfile>
       getMyProfile() async {
     final uri =
-        Uri.parse("$baseUrl/me");
+        Uri.parse(
+      "$baseUrl/me",
+    );
 
     final response =
         await http.get(
       uri,
-      headers: await _authHeaders(),
+      headers:
+          await _authHeaders(),
     );
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
-        message: _errorMessage(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
           response,
           fallback:
               "Failed to load profile",
@@ -357,13 +444,15 @@ class ApiService {
     }
 
     final data =
-        jsonDecode(response.body)
-            as Map<String, dynamic>;
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
 
     return UserProfile.fromJson(
       data,
     );
   }
+
 
   static Future<List<UserContribution>>
       getMyContributions({
@@ -377,13 +466,16 @@ class ApiService {
     final response =
         await http.get(
       uri,
-      headers: await _authHeaders(),
+      headers:
+          await _authHeaders(),
     );
 
     if (response.statusCode != 200) {
       throw ApiException(
-        statusCode: response.statusCode,
-        message: _errorMessage(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
           response,
           fallback:
               "Failed to load "
@@ -393,11 +485,14 @@ class ApiService {
     }
 
     final data =
-        jsonDecode(response.body)
-            as Map<String, dynamic>;
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
 
     final reportsJson =
-        data["reports"] as List<dynamic>? ?? [];
+        data["reports"]
+                as List<dynamic>? ??
+            [];
 
     return reportsJson
         .map(
@@ -407,5 +502,590 @@ class ApiService {
           ),
         )
         .toList();
+  }
+
+
+  static Future<AppPermissions>
+      getMyPermissions() async {
+    final uri = Uri.parse(
+      "$baseUrl/me/permissions",
+    );
+
+    final response =
+        await http.get(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to load permissions",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    return AppPermissions.fromJson(
+      data,
+    );
+  }
+
+
+  // -------------------------------------------------------------------------
+  // Events
+  // -------------------------------------------------------------------------
+
+  static Future<List<YiyoEvent>>
+      getEvents({
+    int limit = 30,
+  }) async {
+    final uri = Uri.parse(
+      "$baseUrl/events?"
+      "limit=$limit",
+    );
+
+    final response =
+        await http.get(
+      uri,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to load events",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    final eventsJson =
+        data["events"]
+                as List<dynamic>? ??
+            [];
+
+    return eventsJson
+        .map(
+          (item) =>
+              YiyoEvent.fromJson(
+            item as Map<String, dynamic>,
+          ),
+        )
+        .toList();
+  }
+
+
+  static Future<YiyoEvent>
+      getEvent(
+    String eventId,
+  ) async {
+    final safeId =
+        Uri.encodeComponent(
+      eventId,
+    );
+
+    final uri = Uri.parse(
+      "$baseUrl/events/$safeId",
+    );
+
+    final response =
+        await http.get(
+      uri,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to load event",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    return YiyoEvent.fromJson(
+      data,
+    );
+  }
+
+
+  static Future<EventEngagement>
+      getEventEngagement(
+    String eventId,
+  ) async {
+    final safeId =
+        Uri.encodeComponent(
+      eventId,
+    );
+
+    final uri = Uri.parse(
+      "$baseUrl/events/"
+      "$safeId/engagement",
+    );
+
+    final response =
+        await http.get(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to load "
+              "event engagement",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    return EventEngagement.fromJson(
+      data,
+    );
+  }
+
+
+  static Future<Map<String, dynamic>>
+      toggleEventHype(
+    String eventId,
+  ) async {
+    final safeId =
+        Uri.encodeComponent(
+      eventId,
+    );
+
+    final uri = Uri.parse(
+      "$baseUrl/events/"
+      "$safeId/hype",
+    );
+
+    final response =
+        await http.post(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to update Hype",
+        ),
+      );
+    }
+
+    return jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+  }
+
+
+  static Future<Map<String, dynamic>>
+      toggleEventGoing(
+    String eventId,
+  ) async {
+    final safeId =
+        Uri.encodeComponent(
+      eventId,
+    );
+
+    final uri = Uri.parse(
+      "$baseUrl/events/"
+      "$safeId/going",
+    );
+
+    final response =
+        await http.post(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to update "
+              "Going status",
+        ),
+      );
+    }
+
+    return jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+  }
+
+
+  static Future<YiyoEvent>
+      createEvent({
+    required String title,
+    required String venueId,
+    required DateTime startsAt,
+    DateTime? endsAt,
+    String description = "",
+    String? posterUrl,
+    String? ticketUrl,
+    List<String> tags =
+        const [],
+  }) async {
+    final uri =
+        Uri.parse(
+      "$baseUrl/events",
+    );
+
+    final body =
+        <String, dynamic>{
+      "title":
+          title.trim(),
+      "venue_id":
+          venueId,
+      "starts_at":
+          startsAt
+              .toUtc()
+              .toIso8601String(),
+      "description":
+          description.trim(),
+      "tags":
+          tags,
+    };
+
+    if (endsAt != null) {
+      body["ends_at"] =
+          endsAt
+              .toUtc()
+              .toIso8601String();
+    }
+
+    if (posterUrl != null &&
+        posterUrl
+            .trim()
+            .isNotEmpty) {
+      body["poster_url"] =
+          posterUrl.trim();
+    }
+
+    if (ticketUrl != null &&
+        ticketUrl
+            .trim()
+            .isNotEmpty) {
+      body["ticket_url"] =
+          ticketUrl.trim();
+    }
+
+    final response =
+        await http.post(
+      uri,
+      headers:
+          await _authHeaders(),
+      body:
+          jsonEncode(
+        body,
+      ),
+    );
+
+    if (response.statusCode != 201) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to create event",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    return YiyoEvent.fromJson(
+      data,
+    );
+  }
+
+
+  static Future<List<YiyoEvent>>
+      getMyEvents({
+    int limit = 50,
+  }) async {
+    final uri = Uri.parse(
+      "$baseUrl/me/events?"
+      "limit=$limit",
+    );
+
+    final response =
+        await http.get(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to load your events",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    final eventsJson =
+        data["events"]
+                as List<dynamic>? ??
+            [];
+
+    return eventsJson
+        .map(
+          (item) =>
+              YiyoEvent.fromJson(
+            item as Map<String, dynamic>,
+          ),
+        )
+        .toList();
+  }
+
+
+  static Future<YiyoEvent>
+      cancelEvent(
+    String eventId,
+  ) async {
+    final safeId =
+        Uri.encodeComponent(
+      eventId,
+    );
+
+    final uri = Uri.parse(
+      "$baseUrl/events/"
+      "$safeId/cancel",
+    );
+
+    final response =
+        await http.post(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to cancel event",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    return YiyoEvent.fromJson(
+      data,
+    );
+  }
+
+
+  static Future<YiyoEvent>
+      approveEvent(
+    String eventId,
+  ) async {
+    final safeId =
+        Uri.encodeComponent(
+      eventId,
+    );
+
+    final uri = Uri.parse(
+      "$baseUrl/events/"
+      "$safeId/approve",
+    );
+
+    final response =
+        await http.post(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to approve event",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    return YiyoEvent.fromJson(
+      data,
+    );
+  }
+
+
+  static Future<List<YiyoEvent>>
+      getEventApprovals({
+    int limit = 50,
+  }) async {
+    final uri = Uri.parse(
+      "$baseUrl/me/event-approvals?"
+      "limit=$limit",
+    );
+
+    final response =
+        await http.get(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to load "
+              "event approvals",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    final eventsJson =
+        data["events"]
+                as List<dynamic>? ??
+            [];
+
+    return eventsJson
+        .map(
+          (item) =>
+              YiyoEvent.fromJson(
+            item as Map<String, dynamic>,
+          ),
+        )
+        .toList();
+  }
+
+
+  static Future<YiyoEvent>
+      rejectEvent(
+    String eventId,
+  ) async {
+    final safeId =
+        Uri.encodeComponent(
+      eventId,
+    );
+
+    final uri = Uri.parse(
+      "$baseUrl/events/"
+      "$safeId/reject",
+    );
+
+    final response =
+        await http.post(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Failed to reject event",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    return YiyoEvent.fromJson(
+      data,
+    );
   }
 }

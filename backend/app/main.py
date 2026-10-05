@@ -1,5 +1,15 @@
 from datetime import datetime, timezone
 from typing import Optional
+from app.services.authorization_service import (
+    get_effective_permissions,
+    grant_business_membership,
+    require_moderator,
+    require_super_admin,
+    suspend_business_membership,
+)
+from app.models.authorization_model import (
+    MembershipGrantRequest,
+)
 from app.services.materialized_vibe_service import (
     attach_materialized_community_states,
     safe_rebuild_venue_community_summary,
@@ -38,6 +48,29 @@ from app.services.yiyo_logic import (
     location_key_for,
 )
 
+from app.models.event_model import (
+    EventCreate,
+)
+
+from app.services.event_service import (
+    approve_event,
+    cancel_event,
+    create_event,
+    get_pending_event_approvals,
+    get_public_event,
+    get_upcoming_events,
+    get_user_events,
+    reject_event,
+)
+
+from app.models.event_engagement_model import (
+    EventReactionType,
+)
+
+from app.services.event_engagement_service import (
+    get_event_engagement_state,
+    toggle_event_reaction,
+)
 
 app = FastAPI(title="YIYO Backend")
 
@@ -1168,6 +1201,38 @@ def get_my_profile(
 
     return profile.model_dump()
 
+@app.get("/me/event-approvals")
+def get_my_event_approvals(
+    limit: int = Query(
+        50,
+        ge=1,
+        le=100,
+    ),
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    events = (
+        get_pending_event_approvals(
+            current_user=
+                current_user,
+            limit=
+                limit,
+        )
+    )
+
+    return {
+        "count":
+            len(events),
+
+        "events": [
+            event.model_dump(
+                mode="json"
+            )
+            for event in events
+        ],
+    }
 
 @app.get("/me/reports")
 def get_my_reports(
@@ -1206,3 +1271,360 @@ def get_my_reports(
             for report in reports
         ],
     }
+
+@app.get("/me/events")
+def get_my_events(
+    limit: int = Query(
+        50,
+        ge=1,
+        le=100,
+    ),
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    events = get_user_events(
+        current_user=current_user,
+        limit=limit,
+    )
+
+    return {
+        "count":
+            len(events),
+
+        "events": [
+            event.model_dump(
+                mode="json"
+            )
+            for event in events
+        ],
+    }
+
+@app.get("/me/permissions")
+def get_my_permissions(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    permissions = (
+        get_effective_permissions(
+            current_user
+        )
+    )
+
+    return (
+        permissions.model_dump(
+            mode="json"
+        )
+    )
+
+@app.get("/moderation/access-check")
+def moderation_access_check(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    auth = require_moderator(
+        current_user
+    )
+
+    return {
+        "ok": True,
+        "uid": auth.uid,
+        "app_role":
+            auth.app_role.value,
+    }
+
+
+@app.get("/admin/access-check")
+def admin_access_check(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    auth = require_super_admin(
+        current_user
+    )
+
+    return {
+        "ok": True,
+        "uid": auth.uid,
+        "app_role":
+            auth.app_role.value,
+    }
+
+@app.post("/admin/memberships")
+def admin_grant_membership(
+    request: MembershipGrantRequest,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    require_super_admin(
+        current_user
+    )
+
+    membership = (
+        grant_business_membership(
+            user_id=
+                request.user_id,
+
+            role=
+                request.role,
+
+            venue_id=
+                request.venue_id,
+        )
+    )
+
+    return (
+        membership.model_dump(
+            mode="json"
+        )
+    )
+
+
+@app.post(
+    "/admin/memberships/"
+    "{membership_id}/suspend"
+)
+def admin_suspend_membership(
+    membership_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    require_super_admin(
+        current_user
+    )
+
+    membership = (
+        suspend_business_membership(
+            membership_id
+        )
+    )
+
+    return (
+        membership.model_dump(
+            mode="json"
+        )
+    )
+
+# ---------------------------------------------------------------------------
+# Events
+# ---------------------------------------------------------------------------
+
+@app.get("/events")
+def list_upcoming_events(
+    limit: int = Query(
+        30,
+        ge=1,
+        le=100,
+    ),
+):
+    events = (
+        get_upcoming_events(
+            limit=limit
+        )
+    )
+
+    return {
+        "count":
+            len(events),
+
+        "events": [
+            event.model_dump(
+                mode="json"
+            )
+            for event in events
+        ],
+    }
+
+@app.post(
+    "/events/{event_id}/cancel"
+)
+def cancel_yiyo_event(
+    event_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    event = cancel_event(
+        event_id=event_id,
+        current_user=
+            current_user,
+    )
+
+    return event.model_dump(
+        mode="json"
+    )
+
+@app.get("/events/{event_id}")
+def get_event(
+    event_id: str,
+):
+    event = (
+        get_public_event(
+            event_id
+        )
+    )
+
+    return event.model_dump(
+        mode="json"
+    )
+
+@app.post(
+    "/events",
+    status_code=201,
+)
+def create_yiyo_event(
+    request: EventCreate,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    canonical_venue = (
+        get_canonical_venue_or_404(
+            request.venue_id
+        )
+    )
+
+    event = create_event(
+        request=request,
+        current_user=current_user,
+        canonical_venue=
+            canonical_venue,
+    )
+
+    return event.model_dump(
+        mode="json"
+    )
+
+@app.post(
+    "/events/{event_id}/reject"
+)
+def reject_yiyo_event(
+    event_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    event = reject_event(
+        event_id=
+            event_id,
+
+        current_user=
+            current_user,
+    )
+
+    return event.model_dump(
+        mode="json"
+    )
+
+@app.post(
+    "/events/{event_id}/approve"
+)
+def approve_yiyo_event(
+    event_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    event = approve_event(
+        event_id=event_id,
+        current_user=
+            current_user,
+    )
+
+    return event.model_dump(
+        mode="json"
+    )
+
+@app.post(
+    "/events/{event_id}/hype"
+)
+def toggle_event_hype(
+    event_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    result = (
+        toggle_event_reaction(
+            event_id=
+                event_id,
+
+            current_user=
+                current_user,
+
+            reaction=
+                EventReactionType
+                .HYPE,
+        )
+    )
+
+    return result.model_dump(
+        mode="json"
+    )
+
+
+@app.post(
+    "/events/{event_id}/going"
+)
+def toggle_event_going(
+    event_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    result = (
+        toggle_event_reaction(
+            event_id=
+                event_id,
+
+            current_user=
+                current_user,
+
+            reaction=
+                EventReactionType
+                .GOING,
+        )
+    )
+
+    return result.model_dump(
+        mode="json"
+    )
+
+
+@app.get(
+    "/events/{event_id}/engagement"
+)
+def get_my_event_engagement(
+    event_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    state = (
+        get_event_engagement_state(
+            event_id=
+                event_id,
+
+            current_user=
+                current_user,
+        )
+    )
+
+    return state.model_dump(
+        mode="json"
+    )

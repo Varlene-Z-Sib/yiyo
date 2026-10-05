@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'profile_screen.dart';
 import '../models/venue.dart';
+import 'events_screen.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'venue_details_screen.dart';
@@ -799,6 +800,21 @@ class _MapScreenState extends State<MapScreen> {
           title: const Text("YIYO"),
           actions: [
             IconButton(
+              tooltip: "Events",
+              icon: const Icon(
+                Icons.celebration_outlined,
+              ),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const EventsScreen(),
+                  ),
+                );
+              },
+            ),
+
+            IconButton(
               tooltip: "Profile",
               icon: const Icon(
                 Icons.person_outline,
@@ -812,9 +828,13 @@ class _MapScreenState extends State<MapScreen> {
                 );
               },
             ),
+
             IconButton(
+              tooltip: "Logout",
               onPressed: _logout,
-              icon: const Icon(Icons.logout),
+              icon: const Icon(
+                Icons.logout,
+              ),
             ),
           ],
         ),
