@@ -10,6 +10,10 @@ from app.services.authorization_service import (
 from app.models.authorization_model import (
     MembershipGrantRequest,
 )
+from app.services.account_deletion_service import (
+    delete_yiyo_account_data,
+    require_recent_auth,
+)
 from app.services.materialized_vibe_service import (
     attach_materialized_community_states,
     safe_rebuild_venue_community_summary,
@@ -21,9 +25,13 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from app.services.user_service import (
     get_user_contributions,
     get_user_profile,
+    update_user_identity,
 )
 from app.services.vibe_summary_service import (
     build_current_vibe_summary,
+)
+from app.models.user_model import (
+    UserProfileUpdate,
 )
 from app.firebase_config import db
 from app.models.report_model import (
@@ -1197,7 +1205,129 @@ def get_my_profile(
             )
             or ""
         ),
+
+        token_provider=str(
+            (
+                current_user.get(
+                    "firebase",
+                    {},
+                )
+                or {}
+            ).get(
+                "sign_in_provider",
+                "",
+            )
+            or ""
+        ),
     )
+
+    return profile.model_dump()
+
+@app.delete("/me")
+def delete_my_account(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = require_recent_auth(
+        current_user
+    )
+
+    cleanup = (
+        delete_yiyo_account_data(
+            uid
+        )
+    )
+
+    try:
+        # Firebase Auth is deliberately
+        # deleted LAST.
+        firebase_auth.delete_user(
+            uid
+        )
+
+    except Exception as e:
+        print(
+            "[ERROR] YIYO account data "
+            "was cleaned but Firebase Auth "
+            "deletion failed for "
+            f"{uid}: {e}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Your account data was "
+                "prepared for deletion, but "
+                "authentication deletion "
+                "could not finish. "
+                "Please try again."
+            ),
+        )
+
+    print(
+        "[INFO] Deleted YIYO account "
+        f"{uid}: {cleanup}"
+    )
+
+    return {
+        "deleted":
+            True,
+    }
+
+@app.patch("/me")
+def update_my_profile(
+    request: UserProfileUpdate,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = current_user.get(
+        "uid"
+    )
+
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid user",
+        )
+
+    profile = update_user_identity(
+        uid=
+            uid,
+
+        username=
+            request.username,
+
+        full_name=
+            request.full_name,
+
+        token_email=
+            str(
+                current_user.get(
+                    "email",
+                    "",
+                )
+                or ""
+            ),
+    )
+
+    try:
+        firebase_auth.update_user(
+            uid,
+            display_name=
+                profile.username,
+        )
+
+    except Exception as e:
+        # Firestore remains the YIYO
+        # source of truth for profile identity.
+        print(
+            "[WARN] Failed to update "
+            "Firebase display name for "
+            f"{uid}: {e}"
+        )
 
     return profile.model_dump()
 

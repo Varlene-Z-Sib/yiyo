@@ -21,15 +21,54 @@ from app.services.authorization_service import (
 )
 
 from app.models.event_model import (
+    EventApprovalResponse,
     EventCreate,
     EventResponse,
     EventStatus,
 )
 
-
+USERS_COLLECTION = "users"
 
 EVENTS_COLLECTION = "events"
 
+def _load_organizer_profiles(
+    organizer_uids: set[str],
+) -> dict[str, dict]:
+    clean_uids = {
+        str(uid or "").strip()
+        for uid in organizer_uids
+        if str(uid or "").strip()
+    }
+
+    if not clean_uids:
+        return {}
+
+    refs = [
+        db.collection(
+            USERS_COLLECTION
+        )
+        .document(
+            uid
+        )
+        for uid in clean_uids
+    ]
+
+    profiles = {}
+
+    for snapshot in db.get_all(
+        refs
+    ):
+        if not snapshot.exists:
+            continue
+
+        profiles[
+            snapshot.id
+        ] = (
+            snapshot.to_dict()
+            or {}
+        )
+
+    return profiles
 
 def determine_initial_event_status(
     permissions: EffectivePermissions,
@@ -827,7 +866,7 @@ def is_event_pending_approval(
 def get_pending_event_approvals(
     current_user: dict,
     limit: int = 50,
-) -> list[EventResponse]:
+) -> list[EventApprovalResponse]:
     if limit < 1 or limit > 100:
         raise HTTPException(
             status_code=400,
@@ -921,7 +960,74 @@ def get_pending_event_approvals(
         reverse=True,
     )
 
-    return events[:limit]
+    # Apply the requested limit first.
+    events = events[:limit]
+
+    # Load each organiser profile only once.
+    organizer_profiles = (
+        _load_organizer_profiles(
+            {
+                event.organizer_uid
+                for event in events
+                if event.organizer_uid
+            }
+        )
+    )
+
+    approvals = []
+
+    for event in events:
+        profile = (
+            organizer_profiles.get(
+                event.organizer_uid,
+                {},
+            )
+        )
+
+        username = str(
+            profile.get(
+                "username",
+                "",
+            )
+            or profile.get(
+                "display_name",
+                "",
+            )
+            or ""
+        ).strip()
+
+        full_name = str(
+            profile.get(
+                "full_name",
+                "",
+            )
+            or ""
+        ).strip()
+
+        email = str(
+            profile.get(
+                "email",
+                "",
+            )
+            or ""
+        ).strip()
+
+        approvals.append(
+            EventApprovalResponse(
+                **event.model_dump(),
+
+                organizer_username=
+                    username,
+
+                organizer_full_name=
+                    full_name,
+
+                organizer_email=
+                    email,
+            )
+        )
+
+    return approvals
 
 
 def reject_event(

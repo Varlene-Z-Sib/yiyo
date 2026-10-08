@@ -13,7 +13,7 @@ import '../models/vibe_report.dart';
 import '../models/vibe_report_request.dart';
 import '../models/yiyo_event.dart';
 import 'auth_service.dart';
-
+import '../models/event_approval.dart';
 
 class ApiException implements Exception {
   final int statusCode;
@@ -38,14 +38,22 @@ class ApiService {
 
 
   static Future<Map<String, String>>
-      _authHeaders() async {
+    _authHeaders({
+    bool forceRefresh = false,
+  }) async {
     final token =
-        await AuthService.getIdToken();
+        await AuthService.getIdToken(
+      forceRefresh:
+          forceRefresh,
+    );
 
     return {
-      "Content-Type": "application/json",
+      "Content-Type":
+          "application/json",
+
       if (token != null)
-        "Authorization": "Bearer $token",
+        "Authorization":
+            "Bearer $token",
     };
   }
 
@@ -411,6 +419,37 @@ class ApiService {
     ) as Map<String, dynamic>;
   }
 
+static Future<void>
+    deleteMyAccount() async {
+  final uri =
+      Uri.parse(
+    "$baseUrl/me",
+  );
+
+  final response =
+      await http.delete(
+    uri,
+    headers:
+        await _authHeaders(
+      forceRefresh:
+          true,
+    ),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't delete your account.",
+      ),
+    );
+  }
+}
 
   // -------------------------------------------------------------------------
   // Profile
@@ -452,6 +491,57 @@ class ApiService {
       data,
     );
   }
+
+  static Future<UserProfile>
+    updateMyProfile({
+  required String username,
+  String fullName = "",
+}) async {
+  final uri =
+      Uri.parse(
+    "$baseUrl/me",
+  );
+
+  final response =
+      await http.patch(
+    uri,
+    headers:
+        await _authHeaders(),
+    body:
+        jsonEncode(
+      {
+        "username":
+            username.trim(),
+
+        "full_name":
+            fullName.trim(),
+      },
+    ),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Failed to update profile",
+      ),
+    );
+  }
+
+  final data =
+      jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+
+  return UserProfile.fromJson(
+    data,
+  );
+}
 
 
   static Future<List<UserContribution>>
@@ -994,55 +1084,58 @@ class ApiService {
   }
 
 
-  static Future<List<YiyoEvent>>
-      getEventApprovals({
-    int limit = 50,
-  }) async {
-    final uri = Uri.parse(
-      "$baseUrl/me/event-approvals?"
-      "limit=$limit",
+  static Future<List<EventApproval>>
+    getEventApprovals({
+  int limit = 50,
+}) async {
+  final uri =
+      Uri.parse(
+    "$baseUrl/me/event-approvals?"
+    "limit=$limit",
+  );
+
+  final response =
+      await http.get(
+    uri,
+    headers:
+        await _authHeaders(),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Failed to load "
+            "event approvals",
+      ),
     );
-
-    final response =
-        await http.get(
-      uri,
-      headers:
-          await _authHeaders(),
-    );
-
-    if (response.statusCode != 200) {
-      throw ApiException(
-        statusCode:
-            response.statusCode,
-        message:
-            _errorMessage(
-          response,
-          fallback:
-              "Failed to load "
-              "event approvals",
-        ),
-      );
-    }
-
-    final data =
-        jsonDecode(
-      response.body,
-    ) as Map<String, dynamic>;
-
-    final eventsJson =
-        data["events"]
-                as List<dynamic>? ??
-            [];
-
-    return eventsJson
-        .map(
-          (item) =>
-              YiyoEvent.fromJson(
-            item as Map<String, dynamic>,
-          ),
-        )
-        .toList();
   }
+
+  final data =
+      jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+
+  final eventsJson =
+      data["events"]
+              as List<dynamic>? ??
+          [];
+
+  return eventsJson
+      .map(
+        (item) =>
+            EventApproval.fromJson(
+          item
+              as Map<String, dynamic>,
+        ),
+      )
+      .toList();
+}
 
 
   static Future<YiyoEvent>

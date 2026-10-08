@@ -136,3 +136,10 @@ class EventResponse(BaseModel):
 
     published_at: str | None = None
     published_at_unix: int | None = None
+
+class EventApprovalResponse(
+    EventResponse
+):
+    organizer_username: str = ""
+    organizer_full_name: str = ""
+    organizer_email: str = ""

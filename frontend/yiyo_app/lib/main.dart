@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/auth_screen.dart';
-import 'screens/main_navigation_screen.dart';
+import 'screens/profile_gate.dart';
 import 'screens/splash_screen.dart';
 
 
@@ -13,7 +13,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await dotenv.load(
-    fileName: ".env",
+    fileName:
+        ".env",
   );
 
   await Firebase.initializeApp();
@@ -29,8 +30,7 @@ Future<void> main() async {
 }
 
 
-class YiyoApp
-    extends StatelessWidget {
+class YiyoApp extends StatelessWidget {
   const YiyoApp({
     super.key,
   });
@@ -59,8 +59,7 @@ class YiyoApp
 }
 
 
-class AuthGate
-    extends StatelessWidget {
+class AuthGate extends StatelessWidget {
   const AuthGate({
     super.key,
   });
@@ -83,7 +82,8 @@ class AuthGate
             snapshot.connectionState ==
             ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(
+            body:
+                Center(
               child:
                   CircularProgressIndicator(),
             ),
@@ -94,7 +94,7 @@ class AuthGate
           return const AuthScreen();
         }
 
-        return const MainNavigationScreen();
+        return const ProfileGate();
       },
     );
   }

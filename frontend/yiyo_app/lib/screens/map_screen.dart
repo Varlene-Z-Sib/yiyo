@@ -6,7 +6,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/venue.dart';
 import '../services/api_service.dart';
-import '../services/auth_service.dart';
 import '../widgets/vibe_report_sheet.dart';
 import 'profile_screen.dart';
 import 'venue_details_screen.dart';
@@ -918,12 +917,6 @@ class _MapScreenState extends State<MapScreen>
     await _loadCurrentView();
   }
 
-
-  Future<void> _logout() async {
-    await AuthService.signOut();
-  }
-
-
   Widget _buildSearchBar() {
     return Positioned(
       top: 16,
@@ -1689,17 +1682,6 @@ class _MapScreenState extends State<MapScreen>
                   ),
                 );
               },
-            ),
-
-            IconButton(
-              tooltip:
-                  "Logout",
-              onPressed:
-                  _logout,
-              icon:
-                  const Icon(
-                Icons.logout,
-              ),
             ),
           ],
         ),
