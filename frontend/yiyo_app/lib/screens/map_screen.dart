@@ -8,7 +8,6 @@ import '../models/venue.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/vibe_report_sheet.dart';
-import 'events_screen.dart';
 import 'profile_screen.dart';
 import 'venue_details_screen.dart';
 
@@ -58,6 +57,8 @@ class _MapScreenState extends State<MapScreen>
 
   bool _isRecoveringLocation = false;
 
+  bool _isNearbyExpanded = false;
+
   String? _errorMessage;
 
 
@@ -102,6 +103,14 @@ class _MapScreenState extends State<MapScreen>
     );
   }
 
+  void _toggleNearbyPanel() {
+    _dismissKeyboard();
+
+    setState(() {
+      _isNearbyExpanded =
+          !_isNearbyExpanded;
+    });
+  }
 
   Future<void>
       _handleLocationServiceStatus(
@@ -1142,247 +1151,302 @@ class _MapScreenState extends State<MapScreen>
 
 
   Widget _buildTopSpotsPanel() {
-    return DraggableScrollableSheet(
-      initialChildSize:
-          0.12,
-      minChildSize:
-          0.12,
-      maxChildSize:
-          0.45,
-      snap:
-          true,
-      snapSizes:
-          const [
-        0.12,
-        0.45,
-      ],
-      builder: (
-        context,
-        scrollController,
-      ) {
-        return Container(
-          decoration:
-              const BoxDecoration(
-            color:
-                Color(
-              0xFF111111,
-            ),
-            borderRadius:
-                BorderRadius
-                    .vertical(
-              top:
-                  Radius.circular(
-                24,
-              ),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color:
-                    Colors.black54,
-                blurRadius:
-                    12,
-                offset:
-                    Offset(
-                  0,
-                  -3,
-                ),
-              ),
-            ],
+  return Positioned(
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height:
+        _isNearbyExpanded
+            ? MediaQuery.of(context)
+                    .size
+                    .height *
+                0.42
+            : 82,
+    child: AnimatedContainer(
+      duration:
+          const Duration(
+        milliseconds: 220,
+      ),
+      curve:
+          Curves.easeOut,
+      decoration:
+          const BoxDecoration(
+        color:
+            Color(
+          0xFF111111,
+        ),
+        borderRadius:
+            BorderRadius.vertical(
+          top:
+              Radius.circular(
+            24,
           ),
-          child: Column(
-            children: [
-              const SizedBox(
-                height: 10,
-              ),
-
-              Container(
-                width: 80,
-                height: 6,
-                decoration:
-                    BoxDecoration(
-                  color:
-                      Colors.grey[
-                    600
-                  ],
-                  borderRadius:
-                      BorderRadius
-                          .circular(
-                    20,
-                  ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color:
+                Colors.black54,
+            blurRadius:
+                12,
+            offset:
+                Offset(
+              0,
+              -3,
+            ),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Material(
+            color:
+                Colors.transparent,
+            child: InkWell(
+              borderRadius:
+                  const BorderRadius
+                      .vertical(
+                top:
+                    Radius.circular(
+                  24,
                 ),
               ),
-
-              const SizedBox(
-                height: 12,
-              ),
-
-              Padding(
+              onTap:
+                  _toggleNearbyPanel,
+              child: Padding(
                 padding:
                     const EdgeInsets
-                        .symmetric(
-                  horizontal:
-                      16,
+                        .fromLTRB(
+                  16,
+                  14,
+                  10,
+                  12,
                 ),
                 child: Row(
                   children: [
-                    Text(
-                      _showYiyoOnly
-                          ? "YIYO Right Now"
-                          : "Top Nearby Spots",
-                      style:
-                          const TextStyle(
-                        fontSize:
-                            18,
-                        fontWeight:
-                            FontWeight
-                                .bold,
+                    Expanded(
+                      child:
+                          Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          Text(
+                            _showYiyoOnly
+                                ? "YIYO Right Now"
+                                : "Top Nearby Spots",
+                            style:
+                                const TextStyle(
+                              fontSize:
+                                  18,
+                              fontWeight:
+                                  FontWeight.bold,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height:
+                                3,
+                          ),
+
+                          Text(
+                            _venues.isEmpty
+                                ? "No nearby spots loaded"
+                                : "${_venues.length} spots nearby",
+                            style:
+                                TextStyle(
+                              fontSize:
+                                  12,
+                              color:
+                                  Colors.grey[
+                                500
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    IconButton(
+                      tooltip:
+                          _isNearbyExpanded
+                              ? "Collapse nearby spots"
+                              : "Show nearby spots",
+                      onPressed:
+                          _toggleNearbyPanel,
+                      icon:
+                          Icon(
+                        _isNearbyExpanded
+                            ? Icons
+                                .keyboard_arrow_down
+                            : Icons
+                                .keyboard_arrow_up,
+                        size:
+                            30,
                       ),
                     ),
                   ],
                 ),
               ),
-
-              const SizedBox(
-                height: 10,
-              ),
-
-              Expanded(
-                child:
-                    ListView.builder(
-                  controller:
-                      scrollController,
-                  padding:
-                      const EdgeInsets
-                          .only(
-                    bottom: 20,
-                  ),
-                  itemCount:
-                      _venues.length,
-                  itemBuilder:
-                      (
-                    context,
-                    index,
-                  ) {
-                    final venue =
-                        _venues[
-                      index
-                    ];
-
-                    final isSelected =
-                        _selectedVenue
-                                ?.id ==
-                            venue.id;
-
-                    return Padding(
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
-                        horizontal:
-                            12,
-                        vertical:
-                            4,
-                      ),
-                      child:
-                          Material(
-                        color:
-                            isSelected
-                                ? Colors
-                                    .white
-                                    .withValues(
-                                    alpha:
-                                        0.08,
-                                  )
-                                : Colors
-                                    .transparent,
-                        borderRadius:
-                            BorderRadius
-                                .circular(
-                          14,
-                        ),
-                        child:
-                            ListTile(
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              14,
-                            ),
-                          ),
-                          onTap: () =>
-                              _focusVenue(
-                            venue,
-                          ),
-                          leading:
-                              CircleAvatar(
-                            backgroundColor:
-                                isSelected
-                                    ? Colors
-                                        .green
-                                    : Colors.grey[
-                                        800
-                                      ],
-                            child:
-                                Text(
-                              "${index + 1}",
-                              style:
-                                  const TextStyle(
-                                color:
-                                    Colors.white,
-                              ),
-                            ),
-                          ),
-                          title:
-                              Text(
-                            venue.name,
-                            style:
-                                const TextStyle(
-                              fontWeight:
-                                  FontWeight
-                                      .w600,
-                            ),
-                          ),
-                          subtitle:
-                              Text(
-                            "${_badgeText(venue)} "
-                            "• ⭐ "
-                            "${venue.rating.toStringAsFixed(1)}",
-                          ),
-                          trailing:
-                              const Icon(
-                            Icons
-                                .chevron_right,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+            ),
           ),
-        );
-      },
-    );
-  }
+
+          if (_isNearbyExpanded)
+            Expanded(
+              child:
+                  _venues.isEmpty
+                      ? Center(
+                          child:
+                              Text(
+                            _isLoading
+                                ? "Finding nearby spots..."
+                                : "No nearby spots found.",
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.grey[
+                                500
+                              ],
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          padding:
+                              const EdgeInsets
+                                  .fromLTRB(
+                            12,
+                            0,
+                            12,
+                            18,
+                          ),
+                          itemCount:
+                              _venues.length,
+                          itemBuilder:
+                              (
+                            context,
+                            index,
+                          ) {
+                            final venue =
+                                _venues[
+                              index
+                            ];
+
+                            final isSelected =
+                                _selectedVenue
+                                        ?.id ==
+                                    venue.id;
+
+                            return Padding(
+                              padding:
+                                  const EdgeInsets
+                                      .only(
+                                bottom:
+                                    6,
+                              ),
+                              child:
+                                  Material(
+                                color:
+                                    isSelected
+                                        ? Colors
+                                            .white
+                                            .withValues(
+                                            alpha:
+                                                0.08,
+                                          )
+                                        : Colors
+                                            .transparent,
+                                borderRadius:
+                                    BorderRadius
+                                        .circular(
+                                  14,
+                                ),
+                                child:
+                                    ListTile(
+                                  shape:
+                                      RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius
+                                            .circular(
+                                      14,
+                                    ),
+                                  ),
+                                  onTap: () {
+                                    _focusVenue(
+                                      venue,
+                                    );
+
+                                    setState(() {
+                                      _isNearbyExpanded =
+                                          false;
+                                    });
+                                  },
+                                  leading:
+                                      CircleAvatar(
+                                    backgroundColor:
+                                        isSelected
+                                            ? Colors.green
+                                            : Colors.grey[
+                                                800
+                                              ],
+                                    child:
+                                        Text(
+                                      "${index + 1}",
+                                      style:
+                                          const TextStyle(
+                                        color:
+                                            Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                  title:
+                                      Text(
+                                    venue.name,
+                                    style:
+                                        const TextStyle(
+                                      fontWeight:
+                                          FontWeight
+                                              .w600,
+                                    ),
+                                  ),
+                                  subtitle:
+                                      Text(
+                                    "${_badgeText(venue)} "
+                                    "• ⭐ "
+                                    "${venue.rating.toStringAsFixed(1)}",
+                                  ),
+                                  trailing:
+                                      const Icon(
+                                    Icons
+                                        .chevron_right,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
 
 
   Widget _buildVenueCard(
     BuildContext context,
   ) {
     if (
-        _selectedVenue ==
-            null ||
-        _isKeyboardOpen(
-          context,
-        )) {
-      return const SizedBox();
-    }
+      _selectedVenue == null ||
+      _isKeyboardOpen(
+        context,
+      ) ||
+      _isNearbyExpanded) {
+    return const SizedBox();
+  }
 
     return Positioned(
       left: 16,
       right: 16,
-      bottom: 180,
+      bottom:100,
       child: Material(
         color:
             Colors.transparent,
@@ -1607,26 +1671,6 @@ class _MapScreenState extends State<MapScreen>
             "YIYO",
           ),
           actions: [
-            IconButton(
-              tooltip:
-                  "Events",
-              icon:
-                  const Icon(
-                Icons
-                    .celebration_outlined,
-              ),
-              onPressed: () {
-                Navigator.of(
-                  context,
-                ).push(
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        const EventsScreen(),
-                  ),
-                );
-              },
-            ),
-
             IconButton(
               tooltip:
                   "Profile",
