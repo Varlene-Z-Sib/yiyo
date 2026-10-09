@@ -13,7 +13,10 @@ import '../models/vibe_report.dart';
 import '../models/vibe_report_request.dart';
 import '../models/yiyo_event.dart';
 import 'auth_service.dart';
-
+import '../models/event_approval.dart';
+import '../models/admin_user_access.dart';
+import '../models/venue_lookup_option.dart';
+import '../models/profile_access_summary.dart';
 
 class ApiException implements Exception {
   final int statusCode;
@@ -38,14 +41,22 @@ class ApiService {
 
 
   static Future<Map<String, String>>
-      _authHeaders() async {
+    _authHeaders({
+    bool forceRefresh = false,
+  }) async {
     final token =
-        await AuthService.getIdToken();
+        await AuthService.getIdToken(
+      forceRefresh:
+          forceRefresh,
+    );
 
     return {
-      "Content-Type": "application/json",
+      "Content-Type":
+          "application/json",
+
       if (token != null)
-        "Authorization": "Bearer $token",
+        "Authorization":
+            "Bearer $token",
     };
   }
 
@@ -294,6 +305,65 @@ class ApiService {
     }
   }
 
+static Future<List<VenueLookupOption>>
+    searchVenueRegistry(
+  String query,
+) async {
+  final clean =
+      query.trim();
+
+  if (clean.length < 2) {
+    return [];
+  }
+
+  final uri =
+      Uri.parse(
+    "$baseUrl/venues/registry-search?"
+    "q=${Uri.encodeQueryComponent(clean)}"
+    "&limit=20",
+  );
+
+  final response =
+      await http.get(
+    uri,
+    headers:
+        await _authHeaders(),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't search venues",
+      ),
+    );
+  }
+
+  final data =
+      jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+
+  final venuesJson =
+      data["venues"]
+              as List<dynamic>? ??
+          [];
+
+  return venuesJson
+      .map(
+        (item) =>
+            VenueLookupOption.fromJson(
+          item
+              as Map<String, dynamic>,
+        ),
+      )
+      .toList();
+}
 
   static Future<Map<String, dynamic>>
       getVenueReports(
@@ -411,6 +481,37 @@ class ApiService {
     ) as Map<String, dynamic>;
   }
 
+static Future<void>
+    deleteMyAccount() async {
+  final uri =
+      Uri.parse(
+    "$baseUrl/me",
+  );
+
+  final response =
+      await http.delete(
+    uri,
+    headers:
+        await _authHeaders(
+      forceRefresh:
+          true,
+    ),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't delete your account.",
+      ),
+    );
+  }
+}
 
   // -------------------------------------------------------------------------
   // Profile
@@ -452,6 +553,57 @@ class ApiService {
       data,
     );
   }
+
+  static Future<UserProfile>
+    updateMyProfile({
+  required String username,
+  String fullName = "",
+}) async {
+  final uri =
+      Uri.parse(
+    "$baseUrl/me",
+  );
+
+  final response =
+      await http.patch(
+    uri,
+    headers:
+        await _authHeaders(),
+    body:
+        jsonEncode(
+      {
+        "username":
+            username.trim(),
+
+        "full_name":
+            fullName.trim(),
+      },
+    ),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Failed to update profile",
+      ),
+    );
+  }
+
+  final data =
+      jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+
+  return UserProfile.fromJson(
+    data,
+  );
+}
 
 
   static Future<List<UserContribution>>
@@ -504,6 +656,49 @@ class ApiService {
         .toList();
   }
 
+static Future<ProfileAccessSummary>
+    getMyAccessSummary() async {
+    final uri =
+        Uri.parse(
+      "$baseUrl/me/access-summary",
+    );
+
+    final response =
+        await http.get(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+    final message =
+        _errorMessage(
+      response,
+      fallback:
+          "Failed to load access",
+    );
+
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          "$message "
+          "(HTTP ${response.statusCode}) "
+          "${response.body}",
+    );
+  }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    return ProfileAccessSummary
+        .fromJson(
+      data,
+    );
+  }
 
   static Future<AppPermissions>
       getMyPermissions() async {
@@ -948,6 +1143,182 @@ class ApiService {
     );
   }
 
+  static Future<YiyoEvent>
+    updateEvent({
+  required String eventId,
+  required String title,
+  required DateTime startsAt,
+  DateTime? endsAt,
+  String description = "",
+  String? posterUrl,
+  String? ticketUrl,
+  List<String> tags = const [],
+}) async {
+  final safeId =
+      Uri.encodeComponent(
+    eventId,
+  );
+
+  final uri =
+      Uri.parse(
+    "$baseUrl/events/$safeId",
+  );
+
+  final body =
+      <String, dynamic>{
+    "title":
+        title.trim(),
+
+    "starts_at":
+        startsAt
+            .toUtc()
+            .toIso8601String(),
+
+    "description":
+        description.trim(),
+
+    "tags":
+        tags,
+  };
+
+  if (endsAt != null) {
+    body["ends_at"] =
+        endsAt
+            .toUtc()
+            .toIso8601String();
+  } else {
+    body["ends_at"] =
+        null;
+  }
+
+  body["poster_url"] =
+      posterUrl?.trim();
+
+  body["ticket_url"] =
+      ticketUrl?.trim();
+
+  final response =
+      await http.patch(
+    uri,
+    headers:
+        await _authHeaders(),
+    body:
+        jsonEncode(
+      body,
+    ),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Failed to update event",
+      ),
+    );
+  }
+
+  final data =
+      jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+
+  return YiyoEvent.fromJson(
+    data,
+  );
+}
+
+static Future<void>
+    deleteEvent(
+  String eventId,
+) async {
+  final safeId =
+      Uri.encodeComponent(
+    eventId,
+  );
+
+  final uri =
+      Uri.parse(
+    "$baseUrl/events/$safeId",
+  );
+
+  final response =
+      await http.delete(
+    uri,
+    headers:
+        await _authHeaders(),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Failed to delete event",
+      ),
+    );
+  }
+}
+
+static Future<List<YiyoEvent>>
+    getManageableEvents({
+  int limit = 100,
+}) async {
+  final uri =
+      Uri.parse(
+    "$baseUrl/me/manageable-events?"
+    "limit=$limit",
+  );
+
+  final response =
+      await http.get(
+    uri,
+    headers:
+        await _authHeaders(),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Failed to load manageable events",
+      ),
+    );
+  }
+
+  final data =
+      jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+
+  final eventsJson =
+      data["events"]
+              as List<dynamic>? ??
+          [];
+
+  return eventsJson
+      .map(
+        (item) =>
+            YiyoEvent.fromJson(
+          item
+              as Map<String, dynamic>,
+        ),
+      )
+      .toList();
+}
 
   static Future<YiyoEvent>
       approveEvent(
@@ -994,55 +1365,58 @@ class ApiService {
   }
 
 
-  static Future<List<YiyoEvent>>
-      getEventApprovals({
-    int limit = 50,
-  }) async {
-    final uri = Uri.parse(
-      "$baseUrl/me/event-approvals?"
-      "limit=$limit",
+  static Future<List<EventApproval>>
+    getEventApprovals({
+  int limit = 50,
+}) async {
+  final uri =
+      Uri.parse(
+    "$baseUrl/me/event-approvals?"
+    "limit=$limit",
+  );
+
+  final response =
+      await http.get(
+    uri,
+    headers:
+        await _authHeaders(),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Failed to load "
+            "event approvals",
+      ),
     );
-
-    final response =
-        await http.get(
-      uri,
-      headers:
-          await _authHeaders(),
-    );
-
-    if (response.statusCode != 200) {
-      throw ApiException(
-        statusCode:
-            response.statusCode,
-        message:
-            _errorMessage(
-          response,
-          fallback:
-              "Failed to load "
-              "event approvals",
-        ),
-      );
-    }
-
-    final data =
-        jsonDecode(
-      response.body,
-    ) as Map<String, dynamic>;
-
-    final eventsJson =
-        data["events"]
-                as List<dynamic>? ??
-            [];
-
-    return eventsJson
-        .map(
-          (item) =>
-              YiyoEvent.fromJson(
-            item as Map<String, dynamic>,
-          ),
-        )
-        .toList();
   }
+
+  final data =
+      jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+
+  final eventsJson =
+      data["events"]
+              as List<dynamic>? ??
+          [];
+
+  return eventsJson
+      .map(
+        (item) =>
+            EventApproval.fromJson(
+          item
+              as Map<String, dynamic>,
+        ),
+      )
+      .toList();
+}
 
 
   static Future<YiyoEvent>
@@ -1087,5 +1461,205 @@ class ApiService {
     return YiyoEvent.fromJson(
       data,
     );
+  }
+  static Future<AdminUserAccess>
+    getAdminUserByUsername(
+  String username,
+) async {
+  var clean =
+      username.trim();
+
+  if (clean.startsWith("@")) {
+    clean =
+        clean.substring(
+      1,
+    );
+  }
+
+  final safeUsername =
+      Uri.encodeComponent(
+    clean,
+  );
+
+  final uri =
+      Uri.parse(
+    "$baseUrl/admin/users/"
+    "by-username/$safeUsername",
+  );
+
+  final response =
+      await http.get(
+    uri,
+    headers:
+        await _authHeaders(),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't find that user",
+      ),
+    );
+  }
+
+  return AdminUserAccess.fromJson(
+    jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>,
+  );
+}
+
+
+static Future<void>
+    grantBusinessMembership({
+  required String userId,
+  required String role,
+  String? venueId,
+}) async {
+  final uri =
+      Uri.parse(
+    "$baseUrl/admin/memberships",
+  );
+
+  final body =
+      <String, dynamic>{
+    "user_id":
+        userId,
+
+    "role":
+        role,
+  };
+
+  if (
+      venueId != null &&
+      venueId.trim().isNotEmpty) {
+    body["venue_id"] =
+        venueId.trim();
+  }
+
+  final response =
+      await http.post(
+    uri,
+    headers:
+        await _authHeaders(),
+    body:
+        jsonEncode(
+      body,
+    ),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't update access",
+      ),
+    );
+  }
+}
+
+
+static Future<void>
+    revokeBusinessMembership(
+  String membershipId,
+  ) async {
+    final safeId =
+        Uri.encodeComponent(
+      membershipId,
+    );
+
+    final uri =
+        Uri.parse(
+      "$baseUrl/admin/memberships/"
+      "$safeId/suspend",
+    );
+
+    final response =
+        await http.post(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Couldn't revoke access",
+        ),
+      );
+    }
+  }
+
+static Future<List<AdminVenueOption>>
+    searchAdminVenues(
+  String query,
+  ) async {
+    final clean =
+        query.trim();
+
+    final uri =
+        Uri.parse(
+      "$baseUrl/admin/venues/search?"
+      "q=${Uri.encodeQueryComponent(clean)}"
+      "&limit=20",
+    );
+
+    final response =
+        await http.get(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Couldn't search venues",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    final venuesJson =
+        data["venues"]
+                as List<dynamic>? ??
+            [];
+
+    return venuesJson
+        .map(
+          (item) =>
+              AdminVenueOption.fromJson(
+            item
+                as Map<String, dynamic>,
+          ),
+        )
+        .toList();
   }
 }

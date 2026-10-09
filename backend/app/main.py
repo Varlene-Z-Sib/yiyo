@@ -6,9 +6,17 @@ from app.services.authorization_service import (
     require_moderator,
     require_super_admin,
     suspend_business_membership,
+    get_admin_user_access_by_username,
+    search_admin_venues,
+    get_profile_access_summary,
+
 )
 from app.models.authorization_model import (
     MembershipGrantRequest,
+)
+from app.services.account_deletion_service import (
+    delete_yiyo_account_data,
+    require_recent_auth,
 )
 from app.services.materialized_vibe_service import (
     attach_materialized_community_states,
@@ -21,9 +29,13 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from app.services.user_service import (
     get_user_contributions,
     get_user_profile,
+    update_user_identity,
 )
 from app.services.vibe_summary_service import (
     build_current_vibe_summary,
+)
+from app.models.user_model import (
+    UserProfileUpdate,
 )
 from app.firebase_config import db
 from app.models.report_model import (
@@ -50,6 +62,7 @@ from app.services.yiyo_logic import (
 
 from app.models.event_model import (
     EventCreate,
+    EventUpdate,
 )
 
 from app.services.event_service import (
@@ -61,6 +74,9 @@ from app.services.event_service import (
     get_upcoming_events,
     get_user_events,
     reject_event,
+    delete_event,
+    get_manageable_events,
+    update_event,
 )
 
 from app.models.event_engagement_model import (
@@ -1197,7 +1213,129 @@ def get_my_profile(
             )
             or ""
         ),
+
+        token_provider=str(
+            (
+                current_user.get(
+                    "firebase",
+                    {},
+                )
+                or {}
+            ).get(
+                "sign_in_provider",
+                "",
+            )
+            or ""
+        ),
     )
+
+    return profile.model_dump()
+
+@app.delete("/me")
+def delete_my_account(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = require_recent_auth(
+        current_user
+    )
+
+    cleanup = (
+        delete_yiyo_account_data(
+            uid
+        )
+    )
+
+    try:
+        # Firebase Auth is deliberately
+        # deleted LAST.
+        firebase_auth.delete_user(
+            uid
+        )
+
+    except Exception as e:
+        print(
+            "[ERROR] YIYO account data "
+            "was cleaned but Firebase Auth "
+            "deletion failed for "
+            f"{uid}: {e}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Your account data was "
+                "prepared for deletion, but "
+                "authentication deletion "
+                "could not finish. "
+                "Please try again."
+            ),
+        )
+
+    print(
+        "[INFO] Deleted YIYO account "
+        f"{uid}: {cleanup}"
+    )
+
+    return {
+        "deleted":
+            True,
+    }
+
+@app.patch("/me")
+def update_my_profile(
+    request: UserProfileUpdate,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = current_user.get(
+        "uid"
+    )
+
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid user",
+        )
+
+    profile = update_user_identity(
+        uid=
+            uid,
+
+        username=
+            request.username,
+
+        full_name=
+            request.full_name,
+
+        token_email=
+            str(
+                current_user.get(
+                    "email",
+                    "",
+                )
+                or ""
+            ),
+    )
+
+    try:
+        firebase_auth.update_user(
+            uid,
+            display_name=
+                profile.username,
+        )
+
+    except Exception as e:
+        # Firestore remains the YIYO
+        # source of truth for profile identity.
+        print(
+            "[WARN] Failed to update "
+            "Firebase display name for "
+            f"{uid}: {e}"
+        )
 
     return profile.model_dump()
 
@@ -1336,6 +1474,26 @@ def moderation_access_check(
             auth.app_role.value,
     }
 
+@app.get(
+    "/admin/users/by-username/"
+    "{username}"
+)
+def admin_get_user_by_username(
+    username: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    require_super_admin(
+        current_user
+    )
+
+    return (
+        get_admin_user_access_by_username(
+            username
+        )
+    )
 
 @app.get("/admin/access-check")
 def admin_access_check(
@@ -1362,7 +1520,7 @@ def admin_grant_membership(
         get_current_user
     ),
 ):
-    require_super_admin(
+    admin = require_super_admin(
         current_user
     )
 
@@ -1376,6 +1534,9 @@ def admin_grant_membership(
 
             venue_id=
                 request.venue_id,
+
+            granted_by_uid=
+                admin.uid,
         )
     )
 
@@ -1385,7 +1546,10 @@ def admin_grant_membership(
         )
     )
 
-
+@app.post(
+    "/admin/memberships/"
+    "{membership_id}/suspend"
+)
 @app.post(
     "/admin/memberships/"
     "{membership_id}/suspend"
@@ -1397,13 +1561,15 @@ def admin_suspend_membership(
         get_current_user
     ),
 ):
-    require_super_admin(
+    admin = require_super_admin(
         current_user
     )
 
     membership = (
         suspend_business_membership(
-            membership_id
+            membership_id,
+            suspended_by_uid=
+                admin.uid,
         )
     )
 
@@ -1412,7 +1578,6 @@ def admin_suspend_membership(
             mode="json"
         )
     )
-
 # ---------------------------------------------------------------------------
 # Events
 # ---------------------------------------------------------------------------
@@ -1627,4 +1792,153 @@ def get_my_event_engagement(
 
     return state.model_dump(
         mode="json"
+    )
+
+@app.patch(
+    "/events/{event_id}"
+)
+def edit_event(
+    event_id: str,
+    request: EventUpdate,
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    event = update_event(
+        event_id=
+            event_id,
+
+        request=
+            request,
+
+        current_user=
+            current_user,
+    )
+
+    return event.model_dump(
+        mode="json"
+    )
+
+@app.delete(
+    "/events/{event_id}"
+)
+def remove_event(
+    event_id: str,
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    return delete_event(
+        event_id=
+            event_id,
+
+        current_user=
+            current_user,
+    )
+
+@app.get(
+    "/me/manageable-events"
+)
+def my_manageable_events(
+    limit: int = 100,
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    events = (
+        get_manageable_events(
+            current_user=
+                current_user,
+
+            limit=
+                limit,
+        )
+    )
+
+    return {
+        "count":
+            len(
+                events
+            ),
+
+        "events": [
+            event.model_dump(
+                mode="json"
+            )
+            for event
+            in events
+        ],
+    }
+
+@app.get(
+    "/admin/venues/search"
+)
+def admin_search_venues(
+    q: str,
+    limit: int = 20,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    require_super_admin(
+        current_user
+    )
+
+    venues = (
+        search_admin_venues(
+            query=q,
+            limit=limit,
+        )
+    )
+
+    return {
+        "count":
+            len(venues),
+
+        "venues":
+            venues,
+    }
+
+@app.get(
+    "/me/access-summary"
+)
+def get_my_access_summary(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    return get_profile_access_summary(
+        current_user
+    )
+    # Authenticated YIYO users may search
+    # venues already known to YIYO.
+    #
+    # IMPORTANT:
+    # This does NOT call Google Places.
+    venues = (
+        search_admin_venues(
+            query=q,
+            limit=limit,
+        )
+    )
+
+    return {
+        "count":
+            len(venues),
+
+        "venues":
+            venues,
+    }
+
+@app.get(
+    "/me/access-summary"
+)
+def get_my_access_summary(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    return get_profile_access_summary(
+        current_user
     )

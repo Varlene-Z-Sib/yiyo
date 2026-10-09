@@ -27,7 +27,9 @@ class _EventDetailsScreenState
   EventEngagement? _engagement;
 
   bool _loadingEngagement = true;
+
   bool _changingHype = false;
+
   bool _changingGoing = false;
 
 
@@ -52,8 +54,11 @@ class _EventDetailsScreenState
       }
 
       setState(() {
-        _engagement = state;
-        _loadingEngagement = false;
+        _engagement =
+            state;
+
+        _loadingEngagement =
+            false;
       });
     } catch (_) {
       if (!mounted) {
@@ -65,19 +70,44 @@ class _EventDetailsScreenState
             EventEngagement(
           eventId:
               widget.event.id,
+
           hypeCount:
               widget.event.hypeCount,
+
           goingCount:
               widget.event.goingCount,
+
           hypedByMe:
               false,
+
           goingByMe:
               false,
         );
 
-        _loadingEngagement = false;
+        _loadingEngagement =
+            false;
       });
     }
+  }
+
+
+  EventEngagement _fallbackEngagement() {
+    return EventEngagement(
+      eventId:
+          widget.event.id,
+
+      hypeCount:
+          widget.event.hypeCount,
+
+      goingCount:
+          widget.event.goingCount,
+
+      hypedByMe:
+          false,
+
+      goingByMe:
+          false,
+    );
   }
 
 
@@ -87,7 +117,8 @@ class _EventDetailsScreenState
     }
 
     setState(() {
-      _changingHype = true;
+      _changingHype =
+          true;
     });
 
     try {
@@ -102,7 +133,8 @@ class _EventDetailsScreenState
       }
 
       final active =
-          result["active"] == true;
+          result["active"] ==
+              true;
 
       final count =
           int.tryParse(
@@ -115,30 +147,17 @@ class _EventDetailsScreenState
       setState(() {
         _engagement =
             (_engagement ??
-                    EventEngagement(
-                      eventId:
-                          widget.event.id,
-                      hypeCount:
-                          widget
-                              .event
-                              .hypeCount,
-                      goingCount:
-                          widget
-                              .event
-                              .goingCount,
-                      hypedByMe:
-                          false,
-                      goingByMe:
-                          false,
-                    ))
+                    _fallbackEngagement())
                 .copyWith(
           hypeCount:
               count,
+
           hypedByMe:
               active,
         );
 
-        _changingHype = false;
+        _changingHype =
+            false;
       });
     } on ApiException catch (e) {
       if (!mounted) {
@@ -146,7 +165,8 @@ class _EventDetailsScreenState
       }
 
       setState(() {
-        _changingHype = false;
+        _changingHype =
+            false;
       });
 
       _showMessage(
@@ -158,7 +178,8 @@ class _EventDetailsScreenState
       }
 
       setState(() {
-        _changingHype = false;
+        _changingHype =
+            false;
       });
 
       _showMessage(
@@ -174,7 +195,8 @@ class _EventDetailsScreenState
     }
 
     setState(() {
-      _changingGoing = true;
+      _changingGoing =
+          true;
     });
 
     try {
@@ -189,7 +211,8 @@ class _EventDetailsScreenState
       }
 
       final active =
-          result["active"] == true;
+          result["active"] ==
+              true;
 
       final count =
           int.tryParse(
@@ -202,30 +225,17 @@ class _EventDetailsScreenState
       setState(() {
         _engagement =
             (_engagement ??
-                    EventEngagement(
-                      eventId:
-                          widget.event.id,
-                      hypeCount:
-                          widget
-                              .event
-                              .hypeCount,
-                      goingCount:
-                          widget
-                              .event
-                              .goingCount,
-                      hypedByMe:
-                          false,
-                      goingByMe:
-                          false,
-                    ))
+                    _fallbackEngagement())
                 .copyWith(
           goingCount:
               count,
+
           goingByMe:
               active,
         );
 
-        _changingGoing = false;
+        _changingGoing =
+            false;
       });
     } on ApiException catch (e) {
       if (!mounted) {
@@ -233,7 +243,8 @@ class _EventDetailsScreenState
       }
 
       setState(() {
-        _changingGoing = false;
+        _changingGoing =
+            false;
       });
 
       _showMessage(
@@ -245,7 +256,8 @@ class _EventDetailsScreenState
       }
 
       setState(() {
-        _changingGoing = false;
+        _changingGoing =
+            false;
       });
 
       _showMessage(
@@ -263,24 +275,28 @@ class _EventDetailsScreenState
     ).showSnackBar(
       SnackBar(
         content:
-            Text(message),
+            Text(
+          message,
+        ),
       ),
     );
   }
 
 
-  Future<void>
-      _copyTicketLink() async {
+  Future<void> _copyTicketLink() async {
     final ticketUrl =
         widget.event.ticketUrl;
 
-    if (ticketUrl == null) {
+    if (
+        ticketUrl == null ||
+        ticketUrl.trim().isEmpty) {
       return;
     }
 
     await Clipboard.setData(
       ClipboardData(
-        text: ticketUrl,
+        text:
+            ticketUrl,
       ),
     );
 
@@ -356,10 +372,11 @@ class _EventDetailsScreenState
   }
 
 
-  String get _timeLabel {
+  String _clockTime(
+    DateTime value,
+  ) {
     final local =
-        widget.event.startsAt
-            .toLocal();
+        value.toLocal();
 
     final hour =
         local.hour
@@ -381,6 +398,36 @@ class _EventDetailsScreenState
   }
 
 
+  String get _timeLabel {
+    return _clockTime(
+      widget.event.startsAt,
+    );
+  }
+
+
+  String get _timeRangeLabel {
+    final start =
+        _timeLabel;
+
+    final end =
+        widget.event.endsAt;
+
+    if (end == null) {
+      return start;
+    }
+
+    return "$start – "
+        "${_clockTime(end)}";
+  }
+
+
+  bool get _hasPoster =>
+      widget.event.posterUrl != null &&
+      widget.event.posterUrl!
+          .trim()
+          .isNotEmpty;
+
+
   @override
   Widget build(
     BuildContext context,
@@ -390,22 +437,49 @@ class _EventDetailsScreenState
 
     final hypeCount =
         engagement?.hypeCount ??
-            widget.event.hypeCount;
+        widget.event.hypeCount;
 
     final goingCount =
         engagement?.goingCount ??
-            widget.event.goingCount;
+        widget.event.goingCount;
+
 
     return Scaffold(
-      appBar: AppBar(
+      backgroundColor:
+          const Color(
+        0xFF0B0B0C,
+      ),
+
+      appBar:
+          AppBar(
+        backgroundColor:
+            const Color(
+          0xFF0B0B0C,
+        ),
+
+        surfaceTintColor:
+            Colors.transparent,
+
         title:
             const Text(
           "Event",
+          style:
+              TextStyle(
+            fontWeight:
+                FontWeight.w800,
+          ),
         ),
       ),
+
       body:
           SingleChildScrollView(
-        child: Column(
+        padding:
+            const EdgeInsets.only(
+          bottom: 34,
+        ),
+
+        child:
+            Column(
           crossAxisAlignment:
               CrossAxisAlignment.start,
           children: [
@@ -413,51 +487,23 @@ class _EventDetailsScreenState
 
             Padding(
               padding:
-                  const EdgeInsets.all(
+                  const EdgeInsets.fromLTRB(
                 18,
+                20,
+                18,
+                0,
               ),
-              child: Column(
+
+              child:
+                  Column(
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
                   if (_isHappeningNow) ...[
-                    Container(
-                      padding:
-                          const EdgeInsets
-                              .symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            Colors.red
-                                .withValues(
-                          alpha: 0.12,
-                        ),
-                        borderRadius:
-                            BorderRadius
-                                .circular(
-                          20,
-                        ),
-                      ),
-                      child:
-                          const Text(
-                        "LIVE NOW",
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.red,
-                          fontWeight:
-                              FontWeight.bold,
-                          fontSize:
-                              12,
-                        ),
-                      ),
-                    ),
+                    _buildLiveBadge(),
 
                     const SizedBox(
-                      height: 10,
+                      height: 12,
                     ),
                   ],
 
@@ -465,57 +511,31 @@ class _EventDetailsScreenState
                     widget.event.title,
                     style:
                         const TextStyle(
-                      fontSize: 26,
+                      fontSize: 30,
                       fontWeight:
-                          FontWeight.bold,
+                          FontWeight.w900,
+                      letterSpacing:
+                          -0.9,
+                      height: 1.05,
                     ),
                   ),
 
                   const SizedBox(
-                    height: 8,
-                  ),
-
-                  Text(
-                    widget.event.venueName,
-                    style:
-                        const TextStyle(
-                      fontSize: 17,
-                      fontWeight:
-                          FontWeight.w600,
-                    ),
-                  ),
-
-                  if (widget
-                      .event
-                      .venueAddress
-                      .trim()
-                      .isNotEmpty) ...[
-                    const SizedBox(
-                      height: 4,
-                    ),
-
-                    Text(
-                      widget
-                          .event
-                          .venueAddress,
-                      style:
-                          TextStyle(
-                        color:
-                            Colors.grey[600],
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(
-                    height: 16,
+                    height: 12,
                   ),
 
                   Row(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons
-                            .calendar_today_outlined,
-                        size: 19,
+                            .location_on_outlined,
+                        size: 21,
+                        color:
+                            Colors.grey[
+                          400
+                        ],
                       ),
 
                       const SizedBox(
@@ -524,31 +544,46 @@ class _EventDetailsScreenState
 
                       Expanded(
                         child:
+                            Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
                             Text(
-                          _dateLabel,
+                              widget.event
+                                  .venueName,
+                              style:
+                                  const TextStyle(
+                                fontSize: 17,
+                                fontWeight:
+                                    FontWeight.w800,
+                              ),
+                            ),
+
+                            if (widget
+                                .event
+                                .venueAddress
+                                .trim()
+                                .isNotEmpty) ...[
+                              const SizedBox(
+                                height: 4,
+                              ),
+
+                              Text(
+                                widget
+                                    .event
+                                    .venueAddress,
+                                style:
+                                    TextStyle(
+                                  color:
+                                      Colors.grey[
+                                    500
+                                  ],
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(
-                    height: 9,
-                  ),
-
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons
-                            .schedule_outlined,
-                        size: 20,
-                      ),
-
-                      const SizedBox(
-                        width: 8,
-                      ),
-
-                      Text(
-                        _timeLabel,
                       ),
                     ],
                   ),
@@ -561,20 +596,97 @@ class _EventDetailsScreenState
                     children: [
                       Expanded(
                         child:
+                            _InfoCard(
+                          icon:
+                              Icons
+                                  .calendar_today_outlined,
+                          label:
+                              "Date",
+                          value:
+                              _dateLabel,
+                        ),
+                      ),
+
+                      const SizedBox(
+                        width: 10,
+                      ),
+
+                      Expanded(
+                        child:
+                            _InfoCard(
+                          icon:
+                              Icons
+                                  .schedule_outlined,
+                          label:
+                              "Time",
+                          value:
+                              _timeRangeLabel,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(
+                    height: 26,
+                  ),
+
+                  const Text(
+                    "Are you feeling it?",
+                    style:
+                        TextStyle(
+                      fontSize: 20,
+                      fontWeight:
+                          FontWeight.w900,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 5,
+                  ),
+
+                  Text(
+                    "Let people know what's catching attention.",
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.grey[
+                        500
+                      ],
+                      fontSize: 13,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 14,
+                  ),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child:
                             _EngagementButton(
                           icon:
                               Icons
                                   .local_fire_department,
+
                           label:
                               "HYPE",
+
                           count:
                               hypeCount,
+
                           selected:
                               engagement
                                       ?.hypedByMe ??
                                   false,
+
                           loading:
                               _changingHype,
+
+                          selectedColor:
+                              Colors
+                                  .deepOrangeAccent,
+
                           onPressed:
                               _loadingEngagement
                                   ? null
@@ -592,16 +704,25 @@ class _EventDetailsScreenState
                           icon:
                               Icons
                                   .check_circle,
+
                           label:
                               "GOING",
+
                           count:
                               goingCount,
+
                           selected:
                               engagement
                                       ?.goingByMe ??
                                   false,
+
                           loading:
                               _changingGoing,
+
+                          selectedColor:
+                              Colors
+                                  .greenAccent,
+
                           onPressed:
                               _loadingEngagement
                                   ? null
@@ -616,7 +737,21 @@ class _EventDetailsScreenState
                       .tags
                       .isNotEmpty) ...[
                     const SizedBox(
-                      height: 22,
+                      height: 28,
+                    ),
+
+                    const Text(
+                      "Vibe",
+                      style:
+                          TextStyle(
+                        fontSize: 19,
+                        fontWeight:
+                            FontWeight.w900,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 10,
                     ),
 
                     Wrap(
@@ -628,10 +763,33 @@ class _EventDetailsScreenState
                               .tags
                               .map(
                                 (tag) =>
-                                    Chip(
-                                  label:
+                                    Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(
+                                    horizontal: 11,
+                                    vertical: 7,
+                                  ),
+                                  decoration:
+                                      BoxDecoration(
+                                    color:
+                                        Colors.white
+                                            .withValues(
+                                      alpha: 0.07,
+                                    ),
+                                    borderRadius:
+                                        BorderRadius.circular(
+                                      20,
+                                    ),
+                                  ),
+                                  child:
                                       Text(
                                     tag,
+                                    style:
+                                        const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight:
+                                          FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               )
@@ -645,7 +803,7 @@ class _EventDetailsScreenState
                       .trim()
                       .isNotEmpty) ...[
                     const SizedBox(
-                      height: 26,
+                      height: 28,
                     ),
 
                     const Text(
@@ -654,12 +812,12 @@ class _EventDetailsScreenState
                           TextStyle(
                         fontSize: 19,
                         fontWeight:
-                            FontWeight.bold,
+                            FontWeight.w900,
                       ),
                     ),
 
                     const SizedBox(
-                      height: 8,
+                      height: 9,
                     ),
 
                     Text(
@@ -668,41 +826,138 @@ class _EventDetailsScreenState
                           .description
                           .trim(),
                       style:
-                          const TextStyle(
-                        height: 1.45,
+                          TextStyle(
+                        color:
+                            Colors.grey[
+                          300
+                        ],
+                        height: 1.55,
+                        fontSize: 15,
                       ),
                     ),
                   ],
 
-                  if (widget.event
+                  if (widget
+                      .event
                       .hasTicketLink) ...[
                     const SizedBox(
-                      height: 28,
+                      height: 30,
                     ),
 
-                    SizedBox(
+                    Container(
                       width:
                           double.infinity,
+
+                      padding:
+                          const EdgeInsets.all(
+                        16,
+                      ),
+
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            const Color(
+                          0xFF151517,
+                        ),
+                        borderRadius:
+                            BorderRadius.circular(
+                          20,
+                        ),
+                      ),
+
                       child:
-                          OutlinedButton.icon(
-                        onPressed:
-                            _copyTicketLink,
-                        icon:
-                            const Icon(
-                          Icons
-                              .confirmation_number_outlined,
-                        ),
-                        label:
-                            const Text(
-                          "COPY TICKET LINK",
-                        ),
+                          Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons
+                                    .confirmation_number_outlined,
+                                size: 20,
+                              ),
+
+                              SizedBox(
+                                width: 8,
+                              ),
+
+                              Text(
+                                "Tickets",
+                                style:
+                                    TextStyle(
+                                  fontSize: 17,
+                                  fontWeight:
+                                      FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(
+                            height: 7,
+                          ),
+
+                          Text(
+                            "Copy the ticket link and open it in your browser.",
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.grey[
+                                500
+                              ],
+                              fontSize: 13,
+                            ),
+                          ),
+
+                          const SizedBox(
+                            height: 14,
+                          ),
+
+                          SizedBox(
+                            width:
+                                double.infinity,
+                            height:
+                                50,
+                            child:
+                                FilledButton.icon(
+                              onPressed:
+                                  _copyTicketLink,
+                              style:
+                                  FilledButton
+                                      .styleFrom(
+                                backgroundColor:
+                                    Colors.white,
+                                foregroundColor:
+                                    Colors.black,
+
+                                shape:
+                                    RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    15,
+                                  ),
+                                ),
+                              ),
+                              icon:
+                                  const Icon(
+                                Icons.copy,
+                              ),
+                              label:
+                                  const Text(
+                                "Copy ticket link",
+                                style:
+                                    TextStyle(
+                                  fontWeight:
+                                      FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-
-                  const SizedBox(
-                    height: 30,
-                  ),
                 ],
               ),
             ),
@@ -713,18 +968,85 @@ class _EventDetailsScreenState
   }
 
 
-  Widget _buildPoster() {
-    final posterUrl =
-        widget.event.posterUrl;
+  Widget _buildLiveBadge() {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal: 11,
+        vertical: 6,
+      ),
 
-    if (posterUrl != null) {
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.red
+                .withValues(
+          alpha: 0.14,
+        ),
+
+        borderRadius:
+            BorderRadius.circular(
+          20,
+        ),
+
+        border:
+            Border.all(
+          color:
+              Colors.red
+                  .withValues(
+            alpha: 0.3,
+          ),
+        ),
+      ),
+
+      child:
+          const Row(
+        mainAxisSize:
+            MainAxisSize.min,
+        children: [
+          Icon(
+            Icons
+                .fiber_manual_record,
+            size: 11,
+            color:
+                Colors.redAccent,
+          ),
+
+          SizedBox(
+            width: 5,
+          ),
+
+          Text(
+            "LIVE NOW",
+            style:
+                TextStyle(
+              color:
+                  Colors.redAccent,
+              fontWeight:
+                  FontWeight.w900,
+              fontSize: 11,
+              letterSpacing:
+                  0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildPoster() {
+    if (_hasPoster) {
       return AspectRatio(
         aspectRatio:
-            4 / 3,
-        child: Image.network(
-          posterUrl,
+            16 / 9,
+
+        child:
+            Image.network(
+          widget.event.posterUrl!,
           fit:
               BoxFit.cover,
+
           errorBuilder:
               (
             context,
@@ -744,45 +1066,103 @@ class _EventDetailsScreenState
   Widget _posterFallback() {
     return AspectRatio(
       aspectRatio:
-          4 / 3,
-      child: Container(
-        color:
-            Theme.of(context)
-                .colorScheme
-                .surfaceContainerHighest,
-        alignment:
-            Alignment.center,
-        child: Column(
-          mainAxisSize:
-              MainAxisSize.min,
+          16 / 9,
+
+      child:
+          Container(
+        decoration:
+            const BoxDecoration(
+          gradient:
+              LinearGradient(
+            begin:
+                Alignment.topLeft,
+            end:
+                Alignment.bottomRight,
+            colors: [
+              Color(
+                0xFF39141E,
+              ),
+              Color(
+                0xFF181217,
+              ),
+              Color(
+                0xFF0B0B0C,
+              ),
+            ],
+          ),
+        ),
+
+        padding:
+            const EdgeInsets.all(
+          24,
+        ),
+
+        child:
+            Column(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons
-                  .celebration_outlined,
-              size: 62,
+            Container(
+              width: 62,
+              height: 62,
+              decoration:
+                  BoxDecoration(
+                color:
+                    Colors.white
+                        .withValues(
+                  alpha: 0.09,
+                ),
+                shape:
+                    BoxShape.circle,
+              ),
+              child:
+                  const Icon(
+                Icons
+                    .celebration_outlined,
+                size: 32,
+              ),
             ),
 
             const SizedBox(
-              height: 10,
+              height: 16,
             ),
 
-            Padding(
-              padding:
-                  const EdgeInsets
-                      .symmetric(
-                horizontal: 24,
+            Text(
+              widget.event.title,
+              maxLines: 2,
+              overflow:
+                  TextOverflow.ellipsis,
+              textAlign:
+                  TextAlign.center,
+              style:
+                  const TextStyle(
+                fontSize: 22,
+                fontWeight:
+                    FontWeight.w900,
+                letterSpacing:
+                    -0.5,
               ),
-              child:
-                  Text(
-                widget.event.title,
-                textAlign:
-                    TextAlign.center,
-                style:
-                    const TextStyle(
-                  fontSize: 18,
-                  fontWeight:
-                      FontWeight.bold,
-                ),
+            ),
+
+            const SizedBox(
+              height: 7,
+            ),
+
+            Text(
+              widget.event.venueName,
+              maxLines: 1,
+              overflow:
+                  TextOverflow.ellipsis,
+              textAlign:
+                  TextAlign.center,
+              style:
+                  TextStyle(
+                color:
+                    Colors.grey[
+                  400
+                ],
+                fontWeight:
+                    FontWeight.w600,
               ),
             ),
           ],
@@ -793,17 +1173,129 @@ class _EventDetailsScreenState
 }
 
 
+class _InfoCard
+    extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+
+  const _InfoCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Container(
+      constraints:
+          const BoxConstraints(
+        minHeight: 96,
+      ),
+
+      padding:
+          const EdgeInsets.all(
+        14,
+      ),
+
+      decoration:
+          BoxDecoration(
+        color:
+            const Color(
+          0xFF151517,
+        ),
+
+        borderRadius:
+            BorderRadius.circular(
+          18,
+        ),
+
+        border:
+            Border.all(
+          color:
+              Colors.white
+                  .withValues(
+            alpha: 0.06,
+          ),
+        ),
+      ),
+
+      child:
+          Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 19,
+            color:
+                Colors.grey[
+              400
+            ],
+          ),
+
+          const SizedBox(
+            height: 10,
+          ),
+
+          Text(
+            label,
+            style:
+                TextStyle(
+              color:
+                  Colors.grey[
+                500
+              ],
+              fontSize: 11,
+              fontWeight:
+                  FontWeight.w600,
+            ),
+          ),
+
+          const SizedBox(
+            height: 3,
+          ),
+
+          Text(
+            value,
+            maxLines: 2,
+            overflow:
+                TextOverflow.ellipsis,
+            style:
+                const TextStyle(
+              fontSize: 13,
+              fontWeight:
+                  FontWeight.w800,
+              height: 1.25,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
 class _EngagementButton
     extends StatelessWidget {
   final IconData icon;
+
   final String label;
 
   final int count;
 
   final bool selected;
+
   final bool loading;
 
+  final Color selectedColor;
+
   final VoidCallback? onPressed;
+
 
   const _EngagementButton({
     required this.icon,
@@ -811,6 +1303,7 @@ class _EngagementButton
     required this.count,
     required this.selected,
     required this.loading,
+    required this.selectedColor,
     required this.onPressed,
   });
 
@@ -819,70 +1312,110 @@ class _EngagementButton
   Widget build(
     BuildContext context,
   ) {
-    final scheme =
-        Theme.of(context)
-            .colorScheme;
-
     return SizedBox(
-      height: 62,
-      child: OutlinedButton(
+      height: 66,
+
+      child:
+          OutlinedButton(
         onPressed:
             onPressed,
+
         style:
-            OutlinedButton.styleFrom(
+            OutlinedButton
+                .styleFrom(
+          foregroundColor:
+              selected
+                  ? selectedColor
+                  : Colors.white,
+
           backgroundColor:
               selected
-                  ? scheme
-                      .primaryContainer
-                  : null,
+                  ? selectedColor
+                      .withValues(
+                      alpha: 0.12,
+                    )
+                  : const Color(
+                      0xFF151517,
+                    ),
+
           side:
               BorderSide(
             color:
                 selected
-                    ? scheme.primary
-                    : scheme
-                        .outlineVariant,
+                    ? selectedColor
+                    : Colors.white
+                        .withValues(
+                        alpha: 0.10,
+                      ),
             width:
                 selected
-                    ? 2
+                    ? 1.6
                     : 1,
           ),
+
+          shape:
+              RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(
+              18,
+            ),
+          ),
         ),
+
         child:
             loading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
+                ? SizedBox(
+                    width: 21,
+                    height: 21,
                     child:
                         CircularProgressIndicator(
-                      strokeWidth: 2,
+                      strokeWidth: 2.2,
+                      color:
+                          selectedColor,
                     ),
                   )
-                : Row(
+                : Column(
                     mainAxisAlignment:
                         MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        icon,
-                        size: 20,
+                      Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            icon,
+                            size: 20,
+                          ),
+
+                          const SizedBox(
+                            width: 6,
+                          ),
+
+                          Text(
+                            "$count",
+                            style:
+                                const TextStyle(
+                              fontSize: 17,
+                              fontWeight:
+                                  FontWeight.w900,
+                            ),
+                          ),
+                        ],
                       ),
 
                       const SizedBox(
-                        width: 6,
+                        height: 3,
                       ),
 
-                      Flexible(
-                        child:
-                            Text(
-                          "$label  $count",
-                          overflow:
-                              TextOverflow
-                                  .ellipsis,
-                          style:
-                              const TextStyle(
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
+                      Text(
+                        label,
+                        style:
+                            const TextStyle(
+                          fontSize: 10,
+                          fontWeight:
+                              FontWeight.w900,
+                          letterSpacing:
+                              0.5,
                         ),
                       ),
                     ],

@@ -16,8 +16,10 @@ from app.models.authorization_model import (
 
 from app.models.event_model import (
     EventCreate,
-    EventStatus,
+    EventStatus,  
+    EventUpdate,
 )
+
 
 from app.services.event_service import (
     can_cancel_event_with_context,
@@ -27,6 +29,9 @@ from app.services.event_service import (
     is_event_pending_approval,
     is_event_status_cancellable,
     validate_event_is_future,
+    can_cancel_event_with_context,
+    can_hard_delete_event_with_context,
+    determine_event_edit_mode,
 )
 
 
@@ -446,4 +451,207 @@ def test_only_pending_event_is_awaiting_approval():
             "cancelled"
         )
         is False
+    )
+
+def test_promoter_can_edit_own_pending_event():
+    mode = (
+        determine_event_edit_mode(
+            permissions=
+                _permissions(
+                    is_promoter=True
+                ),
+
+            organizer_uid=
+                "user_123",
+
+            venue_id=
+                "venue_123",
+
+            status=
+                EventStatus.PENDING,
+        )
+    )
+
+    assert mode == "direct"
+
+
+def test_promoter_published_edit_requires_reapproval():
+    mode = (
+        determine_event_edit_mode(
+            permissions=
+                _permissions(
+                    is_promoter=True
+                ),
+
+            organizer_uid=
+                "user_123",
+
+            venue_id=
+                "venue_123",
+
+            status=
+                EventStatus.PUBLISHED,
+        )
+    )
+
+    assert (
+        mode ==
+        "reapproval"
+    )
+
+
+def test_promoter_cannot_edit_someone_elses_event():
+    mode = (
+        determine_event_edit_mode(
+            permissions=
+                _permissions(
+                    is_promoter=True
+                ),
+
+            organizer_uid=
+                "other_user",
+
+            venue_id=
+                "venue_123",
+
+            status=
+                EventStatus.PENDING,
+        )
+    )
+
+    assert (
+        mode ==
+        "forbidden"
+    )
+
+
+def test_manager_can_edit_managed_venue_event():
+    mode = (
+        determine_event_edit_mode(
+            permissions=
+                _permissions(
+                    managed_venue_ids=[
+                        "venue_123"
+                    ]
+                ),
+
+            organizer_uid=
+                "another_user",
+
+            venue_id=
+                "venue_123",
+
+            status=
+                EventStatus.PUBLISHED,
+        )
+    )
+
+    assert mode == "direct"
+
+
+def test_super_admin_can_edit_any_event():
+    mode = (
+        determine_event_edit_mode(
+            permissions=
+                _permissions(
+                    app_role=
+                        AppRole
+                        .SUPER_ADMIN
+                ),
+
+            organizer_uid=
+                "someone_else",
+
+            venue_id=
+                "venue_other",
+
+            status=
+                EventStatus.PUBLISHED,
+        )
+    )
+
+    assert mode == "direct"
+
+
+def test_promoter_cannot_hard_delete_published_event():
+    allowed = (
+        can_hard_delete_event_with_context(
+            permissions=
+                _permissions(
+                    is_promoter=True
+                ),
+
+            organizer_uid=
+                "user_123",
+
+            venue_id=
+                "venue_123",
+
+            status=
+                EventStatus.PUBLISHED,
+        )
+    )
+
+    assert allowed is False
+
+
+def test_super_admin_can_hard_delete_published_event():
+    allowed = (
+        can_hard_delete_event_with_context(
+            permissions=
+                _permissions(
+                    app_role=
+                        AppRole
+                        .SUPER_ADMIN
+                ),
+
+            organizer_uid=
+                "someone_else",
+
+            venue_id=
+                "venue_other",
+
+            status=
+                EventStatus.PUBLISHED,
+        )
+    )
+
+    assert allowed is True
+
+
+def test_promoter_can_cancel_own_published_event():
+    allowed = (
+        can_cancel_event_with_context(
+            actor_uid=
+                "user_123",
+
+            organizer_uid=
+                "user_123",
+
+            is_super_admin=
+                False,
+
+            manages_venue=
+                False,
+        )
+    )
+
+    assert allowed is True
+
+def test_event_update_requires_at_least_one_field():
+    with pytest.raises(
+        ValidationError
+    ):
+        EventUpdate()
+
+
+def test_event_update_accepts_partial_edit():
+    update = EventUpdate(
+        title=
+            "Updated Friday Night",
+    )
+
+    assert (
+        update.title ==
+        "Updated Friday Night"
     )

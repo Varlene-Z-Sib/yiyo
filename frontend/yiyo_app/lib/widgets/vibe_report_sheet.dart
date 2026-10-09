@@ -478,6 +478,133 @@ class _VibeReportSheetContentState
             ),
 
             const SizedBox(
+              height: 28,
+            ),
+
+            const Text(
+              "How safe do you feel "
+              "here right now?",
+              style:
+                  TextStyle(
+                fontSize: 19,
+                fontWeight:
+                    FontWeight.w700,
+              ),
+            ),
+
+            const SizedBox(
+              height: 5,
+            ),
+
+            Text(
+              "Your experience right now — "
+              "not a permanent rating.",
+              style:
+                  TextStyle(
+                color:
+                    Colors.grey[600],
+                fontSize: 12,
+              ),
+            ),
+
+            const SizedBox(
+              height: 12,
+            ),
+
+            _SafetyButton(
+              label:
+                  "Comfortable",
+
+              subtitle:
+                  "I feel okay here",
+
+              icon:
+                  Icons.shield_outlined,
+
+              selected:
+                  _safetyLevel ==
+                      "Safe",
+
+              onTap: () {
+                setState(() {
+                  _safetyLevel =
+                      _safetyLevel == "Safe"
+                          ? null
+                          : "Safe";
+
+                  _errorMessage =
+                      null;
+                });
+              },
+            ),
+
+            const SizedBox(
+              height: 8,
+            ),
+
+            _SafetyButton(
+              label:
+                  "Stay alert",
+
+              subtitle:
+                  "Something feels off",
+
+              icon:
+                  Icons
+                      .visibility_outlined,
+
+              selected:
+                  _safetyLevel ==
+                      "Sketchy",
+
+              onTap: () {
+                setState(() {
+                  _safetyLevel =
+                      _safetyLevel ==
+                              "Sketchy"
+                          ? null
+                          : "Sketchy";
+
+                  _errorMessage =
+                      null;
+                });
+              },
+            ),
+
+            const SizedBox(
+              height: 8,
+            ),
+
+            _SafetyButton(
+              label:
+                  "I feel unsafe",
+
+              subtitle:
+                  "I'd be cautious here",
+
+              icon:
+                  Icons
+                      .warning_amber_rounded,
+
+              selected:
+                  _safetyLevel ==
+                      "Unsafe",
+
+              onTap: () {
+                setState(() {
+                  _safetyLevel =
+                      _safetyLevel ==
+                              "Unsafe"
+                          ? null
+                          : "Unsafe";
+
+                  _errorMessage =
+                      null;
+                });
+              },
+            ),
+
+            const SizedBox(
               height: 20,
             ),
 
@@ -662,38 +789,6 @@ class _VibeReportSheetContentState
 
           const SizedBox(
             height: 12,
-          ),
-
-          _OptionalOptionGroup(
-            title:
-                "Community safety",
-            helper:
-                "Only answer if you "
-                "can judge it.",
-            options: const [
-              "Safe",
-              "Okay",
-              "Sketchy",
-              "Unsafe",
-            ],
-            selectedValue:
-                _safetyLevel,
-            onSelected: (value) {
-              setState(() {
-                _selectOptional(
-                  value,
-                  _safetyLevel,
-                  (newValue) {
-                    _safetyLevel =
-                        newValue;
-                  },
-                );
-              });
-            },
-          ),
-
-          const SizedBox(
-            height: 22,
           ),
 
           _OptionalOptionGroup(
@@ -1038,6 +1133,176 @@ class _CrowdButton
   }
 }
 
+class _SafetyButton
+    extends StatelessWidget {
+  final String label;
+  final String subtitle;
+
+  final IconData icon;
+
+  final bool selected;
+
+  final VoidCallback onTap;
+
+
+  const _SafetyButton({
+    required this.label,
+    required this.subtitle,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final scheme =
+        Theme.of(context)
+            .colorScheme;
+
+    return Material(
+      color:
+          selected
+              ? scheme
+                  .primaryContainer
+              : scheme
+                  .surfaceContainerHighest,
+
+      borderRadius:
+          BorderRadius.circular(
+        14,
+      ),
+
+      child:
+          InkWell(
+        onTap:
+            onTap,
+
+        borderRadius:
+            BorderRadius.circular(
+          14,
+        ),
+
+        child:
+            Container(
+          constraints:
+              const BoxConstraints(
+            minHeight: 60,
+          ),
+
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal:
+                14,
+            vertical:
+                10,
+          ),
+
+          decoration:
+              BoxDecoration(
+            borderRadius:
+                BorderRadius.circular(
+              14,
+            ),
+
+            border:
+                Border.all(
+              width:
+                  selected
+                      ? 2
+                      : 1,
+
+              color:
+                  selected
+                      ? scheme.primary
+                      : scheme
+                          .outlineVariant,
+            ),
+          ),
+
+          child:
+              Row(
+            children: [
+              Icon(
+                icon,
+
+                color:
+                    selected
+                        ? scheme
+                            .primary
+                        : null,
+              ),
+
+              const SizedBox(
+                width:
+                    12,
+              ),
+
+              Expanded(
+                child:
+                    Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      label,
+                      style:
+                          TextStyle(
+                        fontSize:
+                            15,
+                        fontWeight:
+                            FontWeight.w800,
+
+                        color:
+                            selected
+                                ? scheme
+                                    .primary
+                                : null,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height:
+                          2,
+                    ),
+
+                    Text(
+                      subtitle,
+                      style:
+                          TextStyle(
+                        fontSize:
+                            11,
+                        color:
+                            Colors
+                                .grey[
+                              600
+                            ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (selected)
+                Icon(
+                  Icons
+                      .check_circle,
+
+                  color:
+                      scheme
+                          .primary,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _OptionalOptionGroup
     extends StatelessWidget {

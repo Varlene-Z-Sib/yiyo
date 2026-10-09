@@ -5,48 +5,88 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/auth_screen.dart';
-import 'screens/map_screen.dart';
+import 'screens/profile_gate.dart';
 import 'screens/splash_screen.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+
+  await dotenv.load(
+    fileName:
+        ".env",
+  );
+
   await Firebase.initializeApp();
 
-  await SystemChrome.setEnabledSystemUIMode(
+  await SystemChrome
+      .setEnabledSystemUIMode(
     SystemUiMode.edgeToEdge,
   );
 
-  runApp(const YiyoApp());
+  runApp(
+    const YiyoApp(),
+  );
 }
 
+
 class YiyoApp extends StatelessWidget {
-  const YiyoApp({super.key});
+  const YiyoApp({
+    super.key,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return MaterialApp(
-      title: 'YIYO',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const SplashScreen(
-        nextScreen: AuthGate(),
+      title:
+          'YIYO',
+
+      debugShowCheckedModeBanner:
+          false,
+
+      theme:
+          ThemeData.dark(),
+
+      home:
+          const SplashScreen(
+        nextScreen:
+            AuthGate(),
       ),
     );
   }
 }
 
+
 class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
+  const AuthGate({
+    super.key,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+      stream:
+          FirebaseAuth.instance
+              .authStateChanges(),
+
+      builder:
+          (
+        context,
+        snapshot,
+      ) {
+        if (
+            snapshot.connectionState ==
+            ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body:
+                Center(
+              child:
+                  CircularProgressIndicator(),
+            ),
           );
         }
 
@@ -54,7 +94,7 @@ class AuthGate extends StatelessWidget {
           return const AuthScreen();
         }
 
-        return const MapScreen();
+        return const ProfileGate();
       },
     );
   }
