@@ -92,6 +92,7 @@ class _ProfileGateState
             Color(
           0xFFFCFCFA,
         ),
+
         body: Center(
           child:
               CircularProgressIndicator(
@@ -108,6 +109,7 @@ class _ProfileGateState
             const Color(
           0xFFFCFCFA,
         ),
+
         body: SafeArea(
           child: Center(
             child: Padding(
@@ -115,15 +117,19 @@ class _ProfileGateState
                   const EdgeInsets.all(
                 24,
               ),
+
               child: Column(
                 mainAxisSize:
                     MainAxisSize.min,
+
                 children: [
                   const Icon(
                     Icons
                         .cloud_off_outlined,
+
                     size:
                         44,
+
                     color:
                         Colors.black,
                   ),
@@ -135,14 +141,18 @@ class _ProfileGateState
 
                   const Text(
                     "Couldn't load your YIYO profile.",
+
                     textAlign:
                         TextAlign.center,
+
                     style:
                         TextStyle(
                       color:
                           Colors.black,
+
                       fontSize:
                           18,
+
                       fontWeight:
                           FontWeight.bold,
                     ),
@@ -155,8 +165,10 @@ class _ProfileGateState
 
                   Text(
                     _error!,
+
                     textAlign:
                         TextAlign.center,
+
                     style:
                         TextStyle(
                       color:
@@ -174,20 +186,25 @@ class _ProfileGateState
                   SizedBox(
                     width:
                         double.infinity,
+
                     height:
                         52,
+
                     child:
                         FilledButton(
                       onPressed:
                           _loadProfile,
+
                       style:
                           FilledButton
                               .styleFrom(
                         backgroundColor:
                             Colors.black,
+
                         foregroundColor:
                             Colors.white,
                       ),
+
                       child:
                           const Text(
                         "Try again",
@@ -204,9 +221,11 @@ class _ProfileGateState
                     onPressed: () =>
                         AuthService
                             .signOut(),
+
                     child:
                         const Text(
                       "Use another account",
+
                       style:
                           TextStyle(
                         color:
@@ -284,21 +303,75 @@ class _CompleteProfileScreenState
 
 
   @override
-  void initState() {
-    super.initState();
+void initState() {
+  super.initState();
 
-    _usernameController =
-        TextEditingController(
-      text:
-          widget.profile.username,
-    );
+  final savedUsername =
+      widget.profile.username
+          .trim();
 
-    _fullNameController =
-        TextEditingController(
-      text:
-          widget.profile.fullName,
-    );
-  }
+  final savedFullName =
+      widget.profile.fullName
+          .trim();
+
+  final profileDisplayName =
+      widget.profile.displayName
+          .trim();
+
+  final firebaseDisplayName =
+      AuthService
+              .currentUser
+              ?.displayName
+              ?.trim() ??
+          "";
+
+  // Prefer the real saved username.
+  //
+  // For a brand-new email/password account,
+  // use the value entered on the signup screen,
+  // which was stored in Firebase Auth's
+  // displayName.
+  final usernamePrefill =
+      savedUsername.isNotEmpty
+          ? savedUsername
+          : AuthService
+                  .usesPasswordProvider
+              ? (
+                  firebaseDisplayName
+                          .isNotEmpty
+                      ? firebaseDisplayName
+                      : profileDisplayName
+                )
+              : "";
+
+  // For Google accounts, Firebase's
+  // displayName is the person's Google name,
+  // so use it as the full-name suggestion.
+  final fullNamePrefill =
+      savedFullName.isNotEmpty
+          ? savedFullName
+          : AuthService
+                  .usesGoogleProvider
+              ? (
+                  firebaseDisplayName
+                          .isNotEmpty
+                      ? firebaseDisplayName
+                      : profileDisplayName
+                )
+              : "";
+
+  _usernameController =
+      TextEditingController(
+    text:
+        usernamePrefill,
+  );
+
+  _fullNameController =
+      TextEditingController(
+    text:
+        fullNamePrefill,
+  );
+}
 
 
   @override
@@ -483,6 +556,18 @@ class _CompleteProfileScreenState
             BorderRadius.circular(
           18,
         ),
+
+        borderSide:
+            BorderSide.none,
+      ),
+
+      enabledBorder:
+          OutlineInputBorder(
+        borderRadius:
+            BorderRadius.circular(
+          18,
+        ),
+
         borderSide:
             BorderSide.none,
       ),
@@ -493,13 +578,24 @@ class _CompleteProfileScreenState
             BorderRadius.circular(
           18,
         ),
+
         borderSide:
             const BorderSide(
           color:
               Colors.black,
+
           width:
               1.5,
         ),
+      ),
+
+      contentPadding:
+          const EdgeInsets.symmetric(
+        horizontal:
+            16,
+
+        vertical:
+            18,
       ),
     );
   }
@@ -515,13 +611,19 @@ class _CompleteProfileScreenState
         0xFFFCFCFA,
       ),
 
+      resizeToAvoidBottomInset:
+          true,
+
       body:
           SafeArea(
         child:
             SingleChildScrollView(
+          keyboardDismissBehavior:
+              ScrollViewKeyboardDismissBehavior
+                  .onDrag,
+
           padding:
-              const EdgeInsets
-                  .fromLTRB(
+              const EdgeInsets.fromLTRB(
             24,
             34,
             24,
@@ -541,19 +643,23 @@ class _CompleteProfileScreenState
               child:
                   Column(
                 crossAxisAlignment:
-                    CrossAxisAlignment
-                        .stretch,
+                    CrossAxisAlignment.stretch,
+
                 children: [
                   const Text(
                     "Make YIYO yours.",
+
                     style:
                         TextStyle(
                       color:
                           Colors.black,
+
                       fontSize:
                           30,
+
                       fontWeight:
                           FontWeight.w900,
+
                       letterSpacing:
                           -1,
                     ),
@@ -567,14 +673,17 @@ class _CompleteProfileScreenState
                   Text(
                     "Choose the name people will "
                     "know you by on YIYO.",
+
                     style:
                         TextStyle(
                       color:
                           Colors.grey[
                         600
                       ],
+
                       fontSize:
                           15,
+
                       height:
                           1.45,
                     ),
@@ -587,10 +696,12 @@ class _CompleteProfileScreenState
 
                   const Text(
                     "Username",
+
                     style:
                         TextStyle(
                       color:
                           Colors.black,
+
                       fontWeight:
                           FontWeight.bold,
                     ),
@@ -604,12 +715,14 @@ class _CompleteProfileScreenState
                   Text(
                     "Public and unique. You can "
                     "keep it personal.",
+
                     style:
                         TextStyle(
                       color:
                           Colors.grey[
                         600
                       ],
+
                       fontSize:
                           13,
                     ),
@@ -660,10 +773,13 @@ class _CompleteProfileScreenState
                         _decoration(
                       label:
                           "YIYO username",
+
                       hint:
                           "nightking",
+
                       prefixText:
                           "@",
+
                       icon:
                           Icons
                               .alternate_email,
@@ -677,10 +793,12 @@ class _CompleteProfileScreenState
 
                   const Text(
                     "Full name",
+
                     style:
                         TextStyle(
                       color:
                           Colors.black,
+
                       fontWeight:
                           FontWeight.bold,
                     ),
@@ -695,14 +813,17 @@ class _CompleteProfileScreenState
                     "Optional for now. This is "
                     "account information, not your "
                     "public YIYO identity.",
+
                     style:
                         TextStyle(
                       color:
                           Colors.grey[
                         600
                       ],
+
                       fontSize:
                           13,
+
                       height:
                           1.35,
                     ),
@@ -745,8 +866,10 @@ class _CompleteProfileScreenState
                         _decoration(
                       label:
                           "Full name (optional)",
+
                       hint:
                           "Thabo Molefe",
+
                       icon:
                           Icons
                               .badge_outlined,
@@ -761,8 +884,7 @@ class _CompleteProfileScreenState
 
                     Container(
                       padding:
-                          const EdgeInsets
-                              .all(
+                          const EdgeInsets.all(
                         12,
                       ),
 
@@ -776,8 +898,7 @@ class _CompleteProfileScreenState
                         ),
 
                         borderRadius:
-                            BorderRadius
-                                .circular(
+                            BorderRadius.circular(
                           12,
                         ),
                       ),
@@ -785,10 +906,12 @@ class _CompleteProfileScreenState
                       child:
                           Text(
                         _error!,
+
                         style:
                             const TextStyle(
                           color:
                               Colors.red,
+
                           fontWeight:
                               FontWeight.w600,
                         ),
@@ -804,6 +927,7 @@ class _CompleteProfileScreenState
                   SizedBox(
                     height:
                         56,
+
                     child:
                         FilledButton(
                       onPressed:
@@ -823,8 +947,7 @@ class _CompleteProfileScreenState
                         shape:
                             RoundedRectangleBorder(
                           borderRadius:
-                              BorderRadius
-                                  .circular(
+                              BorderRadius.circular(
                             18,
                           ),
                         ),
@@ -835,22 +958,27 @@ class _CompleteProfileScreenState
                               ? const SizedBox(
                                   width:
                                       22,
+
                                   height:
                                       22,
+
                                   child:
                                       CircularProgressIndicator(
                                     strokeWidth:
                                         2.5,
+
                                     color:
                                         Colors.white,
                                   ),
                                 )
                               : const Text(
                                   "Continue to YIYO",
+
                                   style:
                                       TextStyle(
                                     fontWeight:
                                         FontWeight.w800,
+
                                     fontSize:
                                         16,
                                   ),
@@ -874,6 +1002,7 @@ class _CompleteProfileScreenState
                     child:
                         const Text(
                       "Use another account",
+
                       style:
                           TextStyle(
                         color:
