@@ -903,7 +903,6 @@ Future<void> _restoreDraft() async {
         tags:
             _tags(),
       );
-      
       _draftSaveDebounce?.cancel();
 
       await DraftStorageService
