@@ -16,7 +16,7 @@ from app.models.authorization_model import (
 
 from app.models.event_model import (
     EventCreate,
-    EventStatus,  
+    EventStatus,
     EventUpdate,
 )
 

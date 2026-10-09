@@ -407,7 +407,6 @@ def get_admin_user_access_by_username(
 
         "memberships":
                 membership_items,
-           
     }
 
 def get_user_memberships(
