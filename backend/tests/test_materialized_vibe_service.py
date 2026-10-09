@@ -413,8 +413,13 @@ def test_materialized_summary_preserves_consensus():
     )
 
     assert (
+        summary.safety.response_count
+        == 3
+    )
+
+    assert (
         summary.safety.value
-        == "Safe"
+        == "Comfortable"
     )
 
     assert (

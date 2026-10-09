@@ -5,6 +5,8 @@ import '../models/user_profile.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/profile_access_summary.dart';
+
 
 
 class ProfileScreen extends StatefulWidget {
@@ -33,6 +35,10 @@ class _ProfileScreenState
   String? _error;
 
   UserProfile? _profile;
+
+  ProfileAccessSummary
+    _accessSummary =
+        ProfileAccessSummary.empty;
 
   List<UserContribution> _contributions = [];
 
@@ -104,34 +110,65 @@ void dispose() {
     }
 
     try {
+      // These are the core Profile requests.
+      // If either fails, Profile genuinely
+      // cannot load correctly.
       final profile =
           await ApiService
               .getMyProfile();
 
       final contributions =
           await ApiService
-              .getMyContributions(
-        limit: 50,
-      );
+              .getMyContributions();
+
+      // Access/role information is optional
+      // UI metadata.
+      //
+      // If this request fails, Profile should
+      // STILL load normally.
+      ProfileAccessSummary access =
+          ProfileAccessSummary.empty;
+
+      try {
+        access =
+            await ApiService
+                .getMyAccessSummary();
+      } catch (e) {
+        debugPrint(
+          "[PROFILE] Access summary "
+          "failed: $e",
+        );
+      }
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _profile = profile;
+        _profile =
+            profile;
 
         _contributions =
             contributions;
 
-        _isLoading = false;
+        _accessSummary =
+            access;
 
-        _error = null;
+        _isLoading =
+            false;
+
+        _error =
+            null;
       });
     } catch (e) {
       if (!mounted) {
         return;
       }
+
+      debugPrint(
+        "[PROFILE] Profile load "
+        "failed: $e",
+      );
 
       setState(() {
         _error =
@@ -1114,276 +1151,405 @@ Future<void> _deleteAccount() async {
     );
   }
 
+Widget _buildAccessBadges() {
+  if (!_accessSummary
+      .hasBusinessAccess) {
+    return const SizedBox.shrink();
+  }
 
-  Widget _buildProfileCard(
-    UserProfile profile,
-    int contributionCount,
-  ) {
-    final username =
-        profile.username
-            .trim();
+  return Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      if (_accessSummary
+          .superAdmin)
+        _buildAccessBadge(
+          icon:
+              Icons
+                  .admin_panel_settings_outlined,
 
-    final fullName =
-        profile.fullName
-            .trim();
+          label:
+              "Super Admin",
+        ),
 
-    final avatarText =
-        username.isNotEmpty
-            ? username
-            : profile
-                .displayLabel;
+      if (_accessSummary
+          .promoter)
+        _buildAccessBadge(
+          icon:
+              Icons
+                  .campaign_outlined,
 
-    final initial =
-        avatarText
-            .substring(
-              0,
-              1,
-            )
-            .toUpperCase();
+          label:
+              "Promoter",
+        ),
 
-    return Container(
-      decoration:
-          BoxDecoration(
+      ..._accessSummary
+          .managedVenues
+          .map(
+        (venue) =>
+            _buildAccessBadge(
+          icon:
+              Icons
+                  .storefront_outlined,
+
+          label:
+              "Venue Manager · "
+              "${venue.name}",
+        ),
+      ),
+    ],
+  );
+}
+
+ Widget _buildProfileCard(
+  UserProfile profile,
+  int contributionCount,
+) {
+  final username =
+      profile.username.trim();
+
+  final fullName =
+      profile.fullName.trim();
+
+  final avatarText =
+      username.isNotEmpty
+          ? username
+          : profile.displayLabel.trim();
+
+  final initial =
+      avatarText.isNotEmpty
+          ? avatarText
+              .substring(
+                0,
+                1,
+              )
+              .toUpperCase()
+          : "Y";
+
+  return Container(
+    decoration:
+        BoxDecoration(
+      color:
+          const Color(
+        0xFF151517,
+      ),
+
+      borderRadius:
+          BorderRadius.circular(
+        24,
+      ),
+
+      border:
+          Border.all(
         color:
-            const Color(
-          0xFF151517,
-        ),
-
-        borderRadius:
-            BorderRadius.circular(
-          24,
-        ),
-
-        border:
-            Border.all(
-          color:
-              Colors.white
-                  .withValues(
-            alpha:
-                0.07,
-          ),
+            Colors.white
+                .withValues(
+          alpha: 0.07,
         ),
       ),
+    ),
 
-      padding:
-          const EdgeInsets.all(
-        20,
-      ),
+    padding:
+        const EdgeInsets.all(
+      20,
+    ),
 
-      child:
-          Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.center,
-            children: [
-              Container(
-                width:
-                    64,
-                height:
-                    64,
+    child:
+        Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
 
-                decoration:
-                    const BoxDecoration(
-                  shape:
-                      BoxShape.circle,
+      children: [
+        // ---------------------------------------------------
+        // Profile identity
+        // ---------------------------------------------------
+
+        Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.center,
+
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+
+              decoration:
+                  const BoxDecoration(
+                shape:
+                    BoxShape.circle,
+                color:
+                    Colors.white,
+              ),
+
+              alignment:
+                  Alignment.center,
+
+              child:
+                  Text(
+                initial,
+
+                style:
+                    const TextStyle(
                   color:
-                      Colors.white,
+                      Colors.black,
+                  fontSize:
+                      26,
+                  fontWeight:
+                      FontWeight.w900,
                 ),
+              ),
+            ),
 
-                alignment:
-                    Alignment.center,
+            const SizedBox(
+              width: 16,
+            ),
 
-                child:
-                    Text(
-                  initial,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.black,
-                    fontSize:
-                        26,
-                    fontWeight:
-                        FontWeight.w900,
+            Expanded(
+              child:
+                  Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+
+                children: [
+                  Text(
+                    username.isNotEmpty
+                        ? "@$username"
+                        : profile
+                            .displayLabel,
+
+                    maxLines: 1,
+
+                    overflow:
+                        TextOverflow
+                            .ellipsis,
+
+                    style:
+                        const TextStyle(
+                      fontSize: 22,
+                      fontWeight:
+                          FontWeight.w900,
+                      letterSpacing:
+                          -0.5,
+                    ),
                   ),
-                ),
-              ),
 
-              const SizedBox(
-                width:
-                    16,
-              ),
+                  if (fullName
+                      .isNotEmpty) ...[
+                    const SizedBox(
+                      height: 4,
+                    ),
 
-              Expanded(
-                child:
-                    Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
                     Text(
-                      username.isNotEmpty
-                          ? "@$username"
-                          : profile
-                              .displayLabel,
+                      fullName,
 
-                      maxLines:
-                          1,
+                      maxLines: 1,
 
                       overflow:
                           TextOverflow
                               .ellipsis,
 
                       style:
-                          const TextStyle(
-                        fontSize:
-                            22,
-                        fontWeight:
-                            FontWeight.w900,
-                        letterSpacing:
-                            -0.5,
+                          TextStyle(
+                        color:
+                            Colors.grey[
+                          400
+                        ],
+
+                        fontSize: 14,
                       ),
                     ),
-
-                    if (fullName
-                        .isNotEmpty) ...[
-                      const SizedBox(
-                        height:
-                            4,
-                      ),
-
-                      Text(
-                        fullName,
-
-                        maxLines:
-                            1,
-
-                        overflow:
-                            TextOverflow
-                                .ellipsis,
-
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.grey[
-                            400
-                          ],
-                          fontSize:
-                              14,
-                        ),
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
 
+        // ---------------------------------------------------
+        // YIYO access / roles
+        // ---------------------------------------------------
+
+        if (_accessSummary
+            .hasBusinessAccess) ...[
           const SizedBox(
-            height:
-                20,
+            height: 16,
           ),
 
-          SizedBox(
-            width:
-                double.infinity,
-            height:
-                48,
+          _buildAccessBadges(),
+        ],
 
-            child:
-                FilledButton.icon(
-              onPressed: () =>
-                  _openEditProfile(
-                profile,
-              ),
+        const SizedBox(
+          height: 20,
+        ),
 
-              style:
-                  FilledButton
-                      .styleFrom(
-                backgroundColor:
-                    Colors.white,
-                foregroundColor:
-                    Colors.black,
+        // ---------------------------------------------------
+        // Edit profile
+        // ---------------------------------------------------
 
-                shape:
-                    RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius
-                          .circular(
-                    16,
-                  ),
-                ),
-              ),
+        SizedBox(
+          width:
+              double.infinity,
 
-              icon:
-                  const Icon(
-                Icons
-                    .edit_outlined,
-              ),
+          height:
+              48,
 
-              label:
-                  const Text(
-                "Edit profile",
-                style:
-                    TextStyle(
-                  fontWeight:
-                      FontWeight.w800,
+          child:
+              FilledButton.icon(
+            onPressed: () =>
+                _openEditProfile(
+              profile,
+            ),
+
+            style:
+                FilledButton
+                    .styleFrom(
+              backgroundColor:
+                  Colors.white,
+
+              foregroundColor:
+                  Colors.black,
+
+              shape:
+                  RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(
+                  16,
                 ),
               ),
             ),
-          ),
 
-          const SizedBox(
-            height:
-                20,
-          ),
+            icon:
+                const Icon(
+              Icons.edit_outlined,
+            ),
 
-          Row(
-            children: [
-              Expanded(
-                child:
-                    _buildStat(
-                  label:
-                      "Contributor",
+            label:
+                const Text(
+              "Edit profile",
 
-                  value:
-                      profile
-                          .contributorLevel,
-
-                  icon:
-                      Icons
-                          .bolt_outlined,
-                ),
+              style:
+                  TextStyle(
+                fontWeight:
+                    FontWeight.w800,
               ),
-
-              const SizedBox(
-                width:
-                    12,
-              ),
-
-              Expanded(
-                child:
-                    _buildStat(
-                  label:
-                      "Vibe updates",
-
-                  value:
-                      contributionCount
-                          .toString(),
-
-                  icon:
-                      Icons
-                          .campaign_outlined,
-                ),
-              ),
-            ],
+            ),
           ),
-        ],
+        ),
+
+        const SizedBox(
+          height: 20,
+        ),
+
+        // ---------------------------------------------------
+        // Profile stats
+        // ---------------------------------------------------
+
+        Row(
+          children: [
+            Expanded(
+              child:
+                  _buildStat(
+                label:
+                    "Contributor",
+
+                value:
+                    profile
+                        .contributorLevel,
+
+                icon:
+                    Icons
+                        .bolt_outlined,
+              ),
+            ),
+
+            const SizedBox(
+              width: 12,
+            ),
+
+            Expanded(
+              child:
+                  _buildStat(
+                label:
+                    "Vibe updates",
+
+                value:
+                    contributionCount
+                        .toString(),
+
+                icon:
+                    Icons
+                        .campaign_outlined,
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildAccessBadge({
+  required IconData icon,
+  required String label,
+}) {
+  return Container(
+    padding:
+        const EdgeInsets.symmetric(
+      horizontal: 11,
+      vertical: 7,
+    ),
+
+    decoration:
+        BoxDecoration(
+      color:
+          Colors.white
+              .withValues(
+        alpha: 0.07,
       ),
-    );
-  }
 
+      borderRadius:
+          BorderRadius.circular(
+        20,
+      ),
+
+      border:
+          Border.all(
+        color:
+            Colors.white
+                .withValues(
+          alpha: 0.10,
+        ),
+      ),
+    ),
+
+    child:
+        Row(
+      mainAxisSize:
+          MainAxisSize.min,
+
+      children: [
+        Icon(
+          icon,
+          size: 15,
+        ),
+
+        const SizedBox(
+          width: 6,
+        ),
+
+        Text(
+          label,
+          style:
+              const TextStyle(
+            fontSize: 12,
+            fontWeight:
+                FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildStat({
     required String label,

@@ -6,6 +6,10 @@ from app.services.authorization_service import (
     require_moderator,
     require_super_admin,
     suspend_business_membership,
+    get_admin_user_access_by_username,
+    search_admin_venues,
+    get_profile_access_summary,
+
 )
 from app.models.authorization_model import (
     MembershipGrantRequest,
@@ -58,6 +62,7 @@ from app.services.yiyo_logic import (
 
 from app.models.event_model import (
     EventCreate,
+    EventUpdate,
 )
 
 from app.services.event_service import (
@@ -69,6 +74,9 @@ from app.services.event_service import (
     get_upcoming_events,
     get_user_events,
     reject_event,
+    delete_event,
+    get_manageable_events,
+    update_event,
 )
 
 from app.models.event_engagement_model import (
@@ -1466,6 +1474,26 @@ def moderation_access_check(
             auth.app_role.value,
     }
 
+@app.get(
+    "/admin/users/by-username/"
+    "{username}"
+)
+def admin_get_user_by_username(
+    username: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    require_super_admin(
+        current_user
+    )
+
+    return (
+        get_admin_user_access_by_username(
+            username
+        )
+    )
 
 @app.get("/admin/access-check")
 def admin_access_check(
@@ -1492,7 +1520,7 @@ def admin_grant_membership(
         get_current_user
     ),
 ):
-    require_super_admin(
+    admin = require_super_admin(
         current_user
     )
 
@@ -1506,6 +1534,9 @@ def admin_grant_membership(
 
             venue_id=
                 request.venue_id,
+
+            granted_by_uid=
+                admin.uid,
         )
     )
 
@@ -1515,7 +1546,10 @@ def admin_grant_membership(
         )
     )
 
-
+@app.post(
+    "/admin/memberships/"
+    "{membership_id}/suspend"
+)
 @app.post(
     "/admin/memberships/"
     "{membership_id}/suspend"
@@ -1527,13 +1561,15 @@ def admin_suspend_membership(
         get_current_user
     ),
 ):
-    require_super_admin(
+    admin = require_super_admin(
         current_user
     )
 
     membership = (
         suspend_business_membership(
-            membership_id
+            membership_id,
+            suspended_by_uid=
+                admin.uid,
         )
     )
 
@@ -1542,7 +1578,6 @@ def admin_suspend_membership(
             mode="json"
         )
     )
-
 # ---------------------------------------------------------------------------
 # Events
 # ---------------------------------------------------------------------------
@@ -1757,4 +1792,153 @@ def get_my_event_engagement(
 
     return state.model_dump(
         mode="json"
+    )
+
+@app.patch(
+    "/events/{event_id}"
+)
+def edit_event(
+    event_id: str,
+    request: EventUpdate,
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    event = update_event(
+        event_id=
+            event_id,
+
+        request=
+            request,
+
+        current_user=
+            current_user,
+    )
+
+    return event.model_dump(
+        mode="json"
+    )
+
+@app.delete(
+    "/events/{event_id}"
+)
+def remove_event(
+    event_id: str,
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    return delete_event(
+        event_id=
+            event_id,
+
+        current_user=
+            current_user,
+    )
+
+@app.get(
+    "/me/manageable-events"
+)
+def my_manageable_events(
+    limit: int = 100,
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    events = (
+        get_manageable_events(
+            current_user=
+                current_user,
+
+            limit=
+                limit,
+        )
+    )
+
+    return {
+        "count":
+            len(
+                events
+            ),
+
+        "events": [
+            event.model_dump(
+                mode="json"
+            )
+            for event
+            in events
+        ],
+    }
+
+@app.get(
+    "/admin/venues/search"
+)
+def admin_search_venues(
+    q: str,
+    limit: int = 20,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    require_super_admin(
+        current_user
+    )
+
+    venues = (
+        search_admin_venues(
+            query=q,
+            limit=limit,
+        )
+    )
+
+    return {
+        "count":
+            len(venues),
+
+        "venues":
+            venues,
+    }
+
+@app.get(
+    "/me/access-summary"
+)
+def get_my_access_summary(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    return get_profile_access_summary(
+        current_user
+    )
+    # Authenticated YIYO users may search
+    # venues already known to YIYO.
+    #
+    # IMPORTANT:
+    # This does NOT call Google Places.
+    venues = (
+        search_admin_venues(
+            query=q,
+            limit=limit,
+        )
+    )
+
+    return {
+        "count":
+            len(venues),
+
+        "venues":
+            venues,
+    }
+
+@app.get(
+    "/me/access-summary"
+)
+def get_my_access_summary(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    return get_profile_access_summary(
+        current_user
     )

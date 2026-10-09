@@ -25,7 +25,9 @@ from app.models.authorization_model import (
 BUSINESS_MEMBERSHIPS_COLLECTION = (
     "business_memberships"
 )
-
+USERS_COLLECTION = "users"
+USERNAMES_COLLECTION = "usernames"
+VENUES_COLLECTION = "venues_v2"
 
 def authorization_from_user(
     current_user: dict,
@@ -87,6 +89,100 @@ def require_moderator(
 
     return auth
 
+def get_profile_access_summary(
+    current_user: dict,
+) -> dict:
+    permissions = (
+        get_effective_permissions(
+            current_user
+        )
+    )
+
+    managed_venue_ids = sorted(
+        {
+            str(venue_id).strip()
+            for venue_id
+            in permissions.managed_venue_ids
+            if str(venue_id).strip()
+        }
+    )
+
+    managed_venues = []
+
+    for venue_id in managed_venue_ids:
+        venue_snapshot = (
+            db.collection(
+                VENUES_COLLECTION
+            )
+            .document(
+                venue_id
+            )
+            .get()
+        )
+
+        venue_name = ""
+        venue_address = ""
+
+        if venue_snapshot.exists:
+            venue_data = (
+                venue_snapshot.to_dict()
+                or {}
+            )
+
+            venue_name = str(
+                venue_data.get(
+                    "name",
+                    "",
+                )
+                or ""
+            ).strip()
+
+            venue_address = str(
+                venue_data.get(
+                    "address",
+                    "",
+                )
+                or venue_data.get(
+                    "formatted_address",
+                    "",
+                )
+                or ""
+            ).strip()
+
+        managed_venues.append(
+            {
+                "id":
+                    venue_id,
+
+                "name":
+                    venue_name
+                    or "YIYO venue",
+
+                "address":
+                    venue_address,
+            }
+        )
+
+    managed_venues.sort(
+        key=lambda venue:
+            venue["name"].lower()
+    )
+
+    return {
+        "promoter":
+            permissions.is_promoter,
+
+        "venue_manager":
+            bool(
+                managed_venue_ids
+            ),
+
+        "managed_venues":
+            managed_venues,
+
+        "super_admin":
+            permissions.super_admin,
+    }
 
 def require_super_admin(
     current_user: dict,
@@ -131,6 +227,188 @@ def _membership_document_id(
         )
     ).hexdigest()
 
+def _normalize_username_lookup(
+    username: str,
+) -> str:
+    value = str(
+        username
+        or ""
+    ).strip()
+
+    if value.startswith("@"):
+        value = value[1:]
+
+    value = value.strip().lower()
+
+    if not value:
+        raise HTTPException(
+            status_code=400,
+            detail="Username is required",
+        )
+
+    return value
+
+def get_admin_user_access_by_username(
+    username: str,
+) -> dict:
+    normalized = (
+        _normalize_username_lookup(
+            username
+        )
+    )
+
+    username_ref = (
+        db.collection(
+            USERNAMES_COLLECTION
+        )
+        .document(
+            normalized
+        )
+    )
+
+    username_snapshot = (
+        username_ref.get()
+    )
+
+    if not username_snapshot.exists:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No YIYO user found "
+                "with that username"
+            ),
+        )
+
+    username_data = (
+        username_snapshot.to_dict()
+        or {}
+    )
+
+    uid = str(
+        username_data.get(
+            "uid"
+        )
+        or username_data.get(
+            "user_id"
+        )
+        or ""
+    ).strip()
+
+    if not uid:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Username reservation "
+                "is missing its user"
+            ),
+        )
+
+    user_ref = (
+        db.collection(
+            USERS_COLLECTION
+        )
+        .document(
+            uid
+        )
+    )
+
+    user_snapshot = (
+        user_ref.get()
+    )
+
+    user_data = (
+        user_snapshot.to_dict()
+        if user_snapshot.exists
+        else {}
+    ) or {}
+
+    memberships = (
+        get_user_memberships(
+            uid
+        )
+    )
+
+    membership_items = []
+    for membership in memberships:
+            item = (
+                membership.model_dump(
+                    mode="json"
+                )
+            )
+
+            venue_id = str(
+                item.get(
+                    "venue_id",
+                    "",
+                )
+                or ""
+            ).strip()
+
+            if (
+                item.get("role")
+                == "venue_manager"
+                and venue_id
+            ):
+                venue_snapshot = (
+                    db.collection(
+                        VENUES_COLLECTION
+                    )
+                    .document(
+                        venue_id
+                    )
+                    .get()
+                )
+
+                if venue_snapshot.exists:
+                    venue_data = (
+                        venue_snapshot.to_dict()
+                        or {}
+                    )
+
+                    item["venue_name"] = str(
+                        venue_data.get(
+                            "name",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+
+            membership_items.append(
+                item
+            )
+
+    return {
+        "uid":
+            uid,
+
+        "username":
+            str(
+                user_data.get(
+                    "username"
+                )
+                or normalized
+            ),
+
+        "full_name":
+            str(
+                user_data.get(
+                    "full_name"
+                )
+                or ""
+            ),
+
+        "email":
+            str(
+                user_data.get(
+                    "email"
+                )
+                or ""
+            ),
+
+        "memberships":
+                membership_items,
+           
+    }
 
 def get_user_memberships(
     uid: str,
@@ -347,6 +625,7 @@ def grant_business_membership(
     user_id: str,
     role: MembershipRole,
     venue_id: str | None = None,
+    granted_by_uid: str | None = None,
 ) -> BusinessMembership:
     """
     Super-admin-controlled membership grant.
@@ -436,6 +715,21 @@ def grant_business_membership(
             ),
     }
 
+    if granted_by_uid:
+        payload[
+            "granted_by_uid"
+        ] = granted_by_uid
+
+        payload[
+            "granted_at"
+        ] = now.isoformat()
+
+        payload[
+            "granted_at_unix"
+        ] = int(
+            now.timestamp()
+        )
+
     if not existing.exists:
         payload.update(
             {
@@ -467,6 +761,7 @@ def grant_business_membership(
 
 def suspend_business_membership(
     membership_id: str,
+    suspended_by_uid: str | None = None,
 ) -> BusinessMembership:
     ref = (
         db.collection(
@@ -491,21 +786,39 @@ def suspend_business_membership(
         timezone.utc
     )
 
+    update = {
+        "status":
+            MembershipStatus
+            .SUSPENDED
+            .value,
+
+        "updated_at":
+            now.isoformat(),
+
+        "updated_at_unix":
+            int(
+                now.timestamp()
+            ),
+    }
+
+    if suspended_by_uid:
+        update.update(
+            {
+                "suspended_by_uid":
+                    suspended_by_uid,
+
+                "suspended_at":
+                    now.isoformat(),
+
+                "suspended_at_unix":
+                    int(
+                        now.timestamp()
+                    ),
+            }
+        )
+
     ref.set(
-        {
-            "status":
-                MembershipStatus
-                .SUSPENDED
-                .value,
-
-            "updated_at":
-                now.isoformat(),
-
-            "updated_at_unix":
-                int(
-                    now.timestamp()
-                ),
-        },
+        update,
         merge=True,
     )
 
@@ -518,3 +831,132 @@ def suspend_business_membership(
         id=membership_id,
         **updated,
     )
+
+def search_admin_venues(
+    query: str,
+    limit: int = 20,
+) -> list[dict]:
+    clean_query = str(
+        query or ""
+    ).strip().lower()
+
+    if len(clean_query) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Enter at least 2 characters"
+            ),
+        )
+
+    if limit < 1 or limit > 50:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid venue limit",
+        )
+
+    docs = (
+        db.collection(
+            VENUES_COLLECTION
+        )
+        .stream()
+    )
+
+    matches = []
+
+    for doc in docs:
+        data = (
+            doc.to_dict()
+            or {}
+        )
+
+        name = str(
+            data.get(
+                "name",
+                "",
+            )
+            or ""
+        ).strip()
+
+        address = str(
+            data.get(
+                "address",
+                "",
+            )
+            or data.get(
+                "formatted_address",
+                "",
+            )
+            or ""
+        ).strip()
+
+        if not name:
+            continue
+
+        name_lower = (
+            name.lower()
+        )
+
+        address_lower = (
+            address.lower()
+        )
+
+        if (
+            clean_query
+            not in name_lower
+            and clean_query
+            not in address_lower
+        ):
+            continue
+
+        # Better matches first.
+        if (
+            name_lower ==
+            clean_query
+        ):
+            score = 0
+
+        elif name_lower.startswith(
+            clean_query
+        ):
+            score = 1
+
+        elif clean_query in name_lower:
+            score = 2
+
+        else:
+            score = 3
+
+        matches.append(
+            {
+                "id":
+                    doc.id,
+
+                "name":
+                    name,
+
+                "address":
+                    address,
+
+                "_score":
+                    score,
+            }
+        )
+
+    matches.sort(
+        key=lambda item: (
+            item["_score"],
+            item["name"].lower(),
+        )
+    )
+
+    results = (
+        matches[:limit]
+    )
+
+    for item in results:
+        item.pop(
+            "_score",
+            None,
+        )
+
+    return results

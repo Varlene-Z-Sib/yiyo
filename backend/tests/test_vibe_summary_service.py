@@ -167,10 +167,14 @@ def test_summary_uses_majority_consensus():
         == 2
     )
 
-    assert summary.safety.value == "Safe"
+    assert summary.safety.value == "Comfortable"
     assert (
         summary.safety.agreement_count
         == 2
+    )
+    assert (
+        summary.safety.response_count
+        == 3
     )
 
 
@@ -293,4 +297,177 @@ def test_summary_tracks_latest_report_time():
     assert (
         summary.queue.agreement_count
         == 2
+    )
+
+def test_safety_pulse_normalizes_old_values():
+    now = datetime(
+        2026,
+        10,
+        9,
+        8,
+        tzinfo=timezone.utc,
+    )
+
+    recent = int(
+        datetime(
+            2026,
+            10,
+            9,
+            7,
+            30,
+            tzinfo=timezone.utc,
+        ).timestamp()
+    )
+
+    reports = [
+        {
+            "status": "active",
+            "safety_level": "Okay",
+            "created_at_unix": recent,
+        },
+        {
+            "status": "active",
+            "safety_level": "Sketchy",
+            "created_at_unix": recent,
+        },
+    ]
+
+    summary = (
+        build_current_vibe_summary(
+            reports,
+            now=now,
+        )
+    )
+
+    assert (
+        summary.safety.value
+        == "Stay alert"
+    )
+
+    assert (
+        summary.safety.agreement_count
+        == 2
+    )
+
+    assert (
+        summary.safety.response_count
+        == 2
+    )
+
+
+def test_safety_pulse_ignores_old_safety():
+    now = datetime(
+        2026,
+        10,
+        9,
+        12,
+        tzinfo=timezone.utc,
+    )
+
+    old_safety = int(
+        datetime(
+            2026,
+            10,
+            9,
+            2,
+            tzinfo=timezone.utc,
+        ).timestamp()
+    )
+
+    reports = [
+        {
+            "status": "active",
+            "crowd_level": "Busy",
+            "safety_level": "Unsafe",
+            "created_at_unix":
+                old_safety,
+        },
+    ]
+
+    summary = (
+        build_current_vibe_summary(
+            reports,
+            now=now,
+        )
+    )
+
+    # Still valid for 24-hour vibe.
+    assert (
+        summary.report_count
+        == 1
+    )
+
+    # But too old for Safety Pulse.
+    assert (
+        summary.safety.value
+        is None
+    )
+
+    assert (
+        summary.safety.response_count
+        == 0
+    )
+
+
+def test_safety_tracks_its_own_latest_time():
+    now = datetime(
+        2026,
+        10,
+        9,
+        12,
+        tzinfo=timezone.utc,
+    )
+
+    safety_time = int(
+        datetime(
+            2026,
+            10,
+            9,
+            10,
+            tzinfo=timezone.utc,
+        ).timestamp()
+    )
+
+    newer_vibe_time = int(
+        datetime(
+            2026,
+            10,
+            9,
+            11,
+            tzinfo=timezone.utc,
+        ).timestamp()
+    )
+
+    reports = [
+        {
+            "status": "active",
+            "safety_level": "Safe",
+            "crowd_level": "Busy",
+            "created_at_unix":
+                safety_time,
+        },
+        {
+            "status": "active",
+            "crowd_level": "Packed",
+            "created_at_unix":
+                newer_vibe_time,
+        },
+    ]
+
+    summary = (
+        build_current_vibe_summary(
+            reports,
+            now=now,
+        )
+    )
+
+    assert (
+        summary.latest_created_at_unix
+        == newer_vibe_time
+    )
+
+    assert (
+        summary
+        .safety_latest_created_at_unix
+        == safety_time
     )

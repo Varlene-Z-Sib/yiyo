@@ -5,6 +5,8 @@ from datetime import (
 )
 
 from fastapi import HTTPException
+from google.cloud import firestore
+
 from google.cloud.firestore_v1.base_query import (
     FieldFilter,
 )
@@ -25,6 +27,7 @@ from app.models.event_model import (
     EventCreate,
     EventResponse,
     EventStatus,
+    EventUpdate,
 )
 
 USERS_COLLECTION = "users"
@@ -210,6 +213,153 @@ def is_event_status_cancellable(
         EventStatus.PENDING.value,
         EventStatus.PUBLISHED.value,
     }
+
+def determine_event_edit_mode(
+    permissions: EffectivePermissions,
+    organizer_uid: str,
+    venue_id: str,
+    status: EventStatus,
+) -> str:
+    """
+    Returns:
+
+    direct
+        Change can be applied immediately.
+
+    reapproval
+        Change is allowed but the event
+        must return to pending review.
+
+    forbidden
+        User may not edit the event.
+    """
+
+    if status in {
+        EventStatus.CANCELLED,
+        EventStatus.REJECTED,
+    }:
+        return "forbidden"
+
+    if permissions.super_admin:
+        return "direct"
+
+    if (
+        venue_id
+        in permissions.managed_venue_ids
+    ):
+        return "direct"
+
+    if (
+        permissions.is_promoter
+        and permissions.uid
+        == organizer_uid
+    ):
+        if (
+            status ==
+            EventStatus.PENDING
+        ):
+            return "direct"
+
+        if (
+            status ==
+            EventStatus.PUBLISHED
+        ):
+            return "reapproval"
+
+    return "forbidden"
+
+
+def can_cancel_event_with_context(
+    *,
+    actor_uid: str,
+    organizer_uid: str,
+    is_super_admin: bool,
+    manages_venue: bool,
+) -> bool:
+    if is_super_admin:
+        return True
+
+    if (
+        actor_uid
+        and actor_uid == organizer_uid
+    ):
+        return True
+
+    if manages_venue:
+        return True
+
+    return False
+
+def can_hard_delete_event_with_context(
+    *,
+    permissions,
+    organizer_uid: str,
+    venue_id: str,
+    status: EventStatus,
+) -> bool:
+    # Super admin can permanently remove
+    # any event, including published events.
+    if permissions.super_admin:
+        return True
+
+    # Published real events should normally
+    # be cancelled rather than erased.
+    if (
+        status ==
+        EventStatus.PUBLISHED
+    ):
+        return False
+
+    # Venue managers may permanently remove
+    # non-published events for venues they
+    # are responsible for.
+    if (
+        venue_id
+        in permissions.managed_venue_ids
+    ):
+        return True
+
+    # Promoters may permanently remove only
+    # their own non-published submissions.
+    return (
+        permissions.is_promoter
+        and permissions.uid
+        == organizer_uid
+    )
+
+def _parse_event_datetime(
+    value,
+) -> datetime | None:
+    if value in {
+        None,
+        "",
+    }:
+        return None
+
+    if isinstance(
+        value,
+        datetime,
+    ):
+        parsed = value
+
+    else:
+        try:
+            parsed = (
+                datetime.fromisoformat(
+                    str(value)
+                )
+            )
+        except ValueError:
+            return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(
+            tzinfo=timezone.utc
+        )
+
+    return parsed.astimezone(
+        timezone.utc
+    )
 
 def create_event(
     request: EventCreate,
@@ -610,11 +760,15 @@ def approve_event(
         timezone.utc
     )
 
+    approver_permissions = (
+    get_effective_permissions(
+        current_user
+    )
+)
+
     update = {
         "status":
-            EventStatus
-            .PUBLISHED
-            .value,
+            EventStatus.PUBLISHED.value,
 
         "published_at":
             now.isoformat(),
@@ -623,6 +777,20 @@ def approve_event(
             int(
                 now.timestamp()
             ),
+
+        "approved_by_uid":
+            approver_permissions.uid,
+
+        "updated_at":
+            now.isoformat(),
+
+        "updated_at_unix":
+            int(
+                now.timestamp()
+            ),
+
+        "updated_by_uid":
+            approver_permissions.uid,
     }
 
     ref.set(
@@ -762,11 +930,15 @@ def cancel_event(
 
     allowed = (
         can_cancel_event_with_context(
-            actor_uid=auth.uid,
+            actor_uid=
+                auth.uid,
+
             organizer_uid=
                 organizer_uid,
+
             is_super_admin=
                 auth.is_super_admin,
+
             manages_venue=
                 manages_venue,
         )
@@ -826,6 +998,17 @@ def cancel_event(
             ),
 
         "cancelled_by_uid":
+            auth.uid,
+
+        "updated_at":
+            now.isoformat(),
+
+        "updated_at_unix":
+            int(
+                now.timestamp()
+            ),
+
+        "updated_by_uid":
             auth.uid,
     }
 
@@ -1149,3 +1332,507 @@ def reject_event(
         id=event_id,
         **data,
     )
+
+def update_event(
+    event_id: str,
+    request: EventUpdate,
+    current_user: dict,
+) -> EventResponse:
+    ref = (
+        db.collection(
+            EVENTS_COLLECTION
+        )
+        .document(
+            event_id
+        )
+    )
+
+    snapshot = ref.get()
+
+    if not snapshot.exists:
+        raise HTTPException(
+            status_code=404,
+            detail="Event not found",
+        )
+
+    data = (
+        snapshot.to_dict()
+        or {}
+    )
+
+    organizer_uid = str(
+        data.get(
+            "organizer_uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    venue_id = str(
+        data.get(
+            "venue_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    try:
+        status = EventStatus(
+            str(
+                data.get(
+                    "status",
+                    "",
+                )
+                or ""
+            )
+        )
+
+    except ValueError:
+        raise HTTPException(
+            status_code=409,
+            detail="Invalid event status",
+        )
+
+    permissions = (
+        get_effective_permissions(
+            current_user
+        )
+    )
+
+    edit_mode = (
+        determine_event_edit_mode(
+            permissions=
+                permissions,
+
+            organizer_uid=
+                organizer_uid,
+
+            venue_id=
+                venue_id,
+
+            status=
+                status,
+        )
+    )
+
+    if edit_mode == "forbidden":
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You cannot edit "
+                "this event"
+            ),
+        )
+
+    fields = (
+        request.model_fields_set
+    )
+
+    update = {}
+
+    if "title" in fields:
+        update["title"] = (
+            request.title
+        )
+
+    if "description" in fields:
+        update["description"] = (
+            request.description
+        )
+
+    if "poster_url" in fields:
+        update["poster_url"] = (
+            request.poster_url
+        )
+
+    if "ticket_url" in fields:
+        update["ticket_url"] = (
+            request.ticket_url
+        )
+
+    if "tags" in fields:
+        update["tags"] = (
+            request.tags
+            or []
+        )
+
+    existing_start = (
+        _parse_event_datetime(
+            data.get(
+                "starts_at"
+            )
+        )
+    )
+
+    existing_end = (
+        _parse_event_datetime(
+            data.get(
+                "ends_at"
+            )
+        )
+    )
+
+    if existing_start is None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Event has an invalid "
+                "start time"
+            ),
+        )
+
+    starts_at = (
+        request.starts_at
+        .astimezone(
+            timezone.utc
+        )
+        if "starts_at" in fields
+        else existing_start
+    )
+
+    ends_at = (
+        (
+            request.ends_at
+            .astimezone(
+                timezone.utc
+            )
+            if request.ends_at
+            is not None
+            else None
+        )
+        if "ends_at" in fields
+        else existing_end
+    )
+
+    if "starts_at" in fields:
+        validate_event_is_future(
+            starts_at
+        )
+
+    if (
+        ends_at is not None
+        and ends_at <= starts_at
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Event end time must be "
+                "after start time"
+            ),
+        )
+
+    if (
+        "starts_at" in fields
+        or "ends_at" in fields
+    ):
+        visibility_ends_at = (
+            event_visibility_end(
+                starts_at=
+                    starts_at,
+
+                ends_at=
+                    ends_at,
+            )
+        )
+
+        update.update(
+            {
+                "starts_at":
+                    starts_at.isoformat(),
+
+                "starts_at_unix":
+                    int(
+                        starts_at.timestamp()
+                    ),
+
+                "ends_at":
+                    (
+                        ends_at.isoformat()
+                        if ends_at
+                        else None
+                    ),
+
+                "ends_at_unix":
+                    (
+                        int(
+                            ends_at.timestamp()
+                        )
+                        if ends_at
+                        else None
+                    ),
+
+                "visibility_ends_at":
+                    visibility_ends_at
+                    .isoformat(),
+
+                "visibility_ends_at_unix":
+                    int(
+                        visibility_ends_at
+                        .timestamp()
+                    ),
+            }
+        )
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    update.update(
+        {
+            "updated_at":
+                now.isoformat(),
+
+            "updated_at_unix":
+                int(
+                    now.timestamp()
+                ),
+
+            "updated_by_uid":
+                permissions.uid,
+        }
+    )
+
+    # A promoter may fix their own
+    # published event, but the edited
+    # version must be reviewed again.
+    if (
+        edit_mode ==
+        "reapproval"
+    ):
+        update.update(
+            {
+                "status":
+                    EventStatus
+                    .PENDING
+                    .value,
+
+                "resubmitted_at":
+                    now.isoformat(),
+
+                "resubmitted_at_unix":
+                    int(
+                        now.timestamp()
+                    ),
+
+                "approved_by_uid":
+                    firestore
+                    .DELETE_FIELD,
+            }
+        )
+
+    ref.update(
+        update
+    )
+
+    refreshed = ref.get()
+
+    refreshed_data = (
+        refreshed.to_dict()
+        or {}
+    )
+
+    return EventResponse(
+        id=
+            event_id,
+        **refreshed_data,
+    )
+
+def delete_event(
+    event_id: str,
+    current_user: dict,
+) -> dict:
+    ref = (
+        db.collection(
+            EVENTS_COLLECTION
+        )
+        .document(
+            event_id
+        )
+    )
+
+    snapshot = ref.get()
+
+    if not snapshot.exists:
+        raise HTTPException(
+            status_code=404,
+            detail="Event not found",
+        )
+
+    data = (
+        snapshot.to_dict()
+        or {}
+    )
+
+    organizer_uid = str(
+        data.get(
+            "organizer_uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    venue_id = str(
+        data.get(
+            "venue_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    try:
+        status = EventStatus(
+            str(
+                data.get(
+                    "status",
+                    "",
+                )
+                or ""
+            )
+        )
+
+    except ValueError:
+        raise HTTPException(
+            status_code=409,
+            detail="Invalid event status",
+        )
+
+    permissions = (
+        get_effective_permissions(
+            current_user
+        )
+    )
+
+    if not (
+        can_hard_delete_event_with_context(
+            permissions=
+                permissions,
+
+            organizer_uid=
+                organizer_uid,
+
+            venue_id=
+                venue_id,
+
+            status=
+                status,
+        )
+    ):
+        if (
+            status ==
+            EventStatus.PUBLISHED
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Published events should "
+                    "be cancelled instead "
+                    "of deleted."
+                ),
+            )
+
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You cannot delete "
+                "this event"
+            ),
+        )
+
+    ref.delete()
+
+    return {
+        "deleted":
+            True,
+
+        "event_id":
+            event_id,
+    }
+
+def get_manageable_events(
+    current_user: dict,
+    limit: int = 100,
+) -> list[EventResponse]:
+    if limit < 1 or limit > 200:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid event limit",
+        )
+
+    permissions = (
+        get_effective_permissions(
+            current_user
+        )
+    )
+
+    if (
+        not permissions.super_admin
+        and not permissions
+        .managed_venue_ids
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "You do not have permission "
+                "to manage venue events"
+            ),
+        )
+
+    # Cheap launch query.
+    #
+    # Super-admin gets all events.
+    # Venue managers are filtered by
+    # their managed venue IDs in Python.
+    docs = (
+        db.collection(
+            EVENTS_COLLECTION
+        )
+        .stream()
+    )
+
+    events = []
+
+    for doc in docs:
+        data = (
+            doc.to_dict()
+            or {}
+        )
+
+        venue_id = str(
+            data.get(
+                "venue_id",
+                "",
+            )
+            or ""
+        ).strip()
+
+        if (
+            not permissions.super_admin
+            and venue_id
+            not in permissions
+            .managed_venue_ids
+        ):
+            continue
+
+        try:
+            events.append(
+                EventResponse(
+                    id=
+                        doc.id,
+                    **data,
+                )
+            )
+
+        except Exception as e:
+            print(
+                "[WARN] Invalid managed "
+                "event "
+                f"{doc.id}: {e}"
+            )
+
+    events.sort(
+        key=lambda event:
+            event.created_at_unix,
+        reverse=True,
+    )
+
+    return events[:limit]

@@ -154,10 +154,152 @@ def _consensus_value(
     )
 
     return VibeSignalSummary(
-        value=display_values[winner],
-        agreement_count=counts[winner],
+    value=display_values[winner],
+    agreement_count=counts[winner],
+    response_count=sum(
+        counts.values()
+    ),
+)
+SAFETY_PULSE_MAX_AGE_HOURS = 8
+
+
+def _recent_safety_reports(
+    reports: list[dict],
+    now: datetime,
+) -> list[dict]:
+    """
+    Safety should expire faster than the
+    general 24-hour Current Vibe.
+
+    Only reports from the last 8 hours
+    that actually contain a safety answer
+    contribute to Safety Pulse.
+    """
+
+    safety_reports = []
+
+    for report in reports:
+        raw_value = str(
+            report.get(
+                "safety_level",
+                "",
+            )
+            or ""
+        ).strip()
+
+        if not raw_value:
+            continue
+
+        created_at_unix = (
+            _valid_created_at_unix(
+                report
+            )
+        )
+
+        if created_at_unix is None:
+            continue
+
+        try:
+            report_time = (
+                datetime.fromtimestamp(
+                    created_at_unix,
+                    tz=timezone.utc,
+                )
+            )
+        except (
+            ValueError,
+            OverflowError,
+            OSError,
+        ):
+            continue
+
+        age_hours = (
+            now - report_time
+        ).total_seconds() / 3600
+
+        if age_hours < 0:
+            continue
+
+        if (
+            age_hours
+            > SAFETY_PULSE_MAX_AGE_HOURS
+        ):
+            continue
+
+        safety_reports.append(
+            report
+        )
+
+    safety_reports.sort(
+        key=lambda report: (
+            _valid_created_at_unix(
+                report
+            )
+            or 0
+        ),
+        reverse=True,
     )
 
+    return safety_reports
+
+
+def _safety_pulse(
+    reports: list[dict],
+) -> VibeSignalSummary:
+    """
+    Convert the older stored safety values
+    into the simpler user-facing pulse.
+
+    This means old reports remain useful:
+      Safe       -> Comfortable
+      Okay       -> Stay alert
+      Sketchy    -> Stay alert
+      Unsafe     -> I feel unsafe
+    """
+
+    mapping = {
+        "safe":
+            "Comfortable",
+
+        "okay":
+            "Stay alert",
+
+        "sketchy":
+            "Stay alert",
+
+        "unsafe":
+            "I feel unsafe",
+    }
+
+    normalized_reports = []
+
+    for report in reports:
+        raw_value = str(
+            report.get(
+                "safety_level",
+                "",
+            )
+            or ""
+        ).strip()
+
+        mapped = mapping.get(
+            raw_value.casefold()
+        )
+
+        if mapped is None:
+            continue
+
+        normalized_reports.append(
+            {
+                "safety_pulse":
+                    mapped,
+            }
+        )
+
+    return _consensus_value(
+        normalized_reports,
+        "safety_pulse",
+    )
 
 def build_current_vibe_summary(
     reports: list[dict],
@@ -177,12 +319,27 @@ def build_current_vibe_summary(
         )
     )
 
+    safety_reports = (
+        _recent_safety_reports(
+            current_reports,
+            current_time,
+        )
+    )
+
     latest_created_at_unix = None
+    safety_latest_created_at_unix = None
 
     if current_reports:
         latest_created_at_unix = (
             _valid_created_at_unix(
                 current_reports[0]
+            )
+        )
+
+    if safety_reports:
+        safety_latest_created_at_unix = (
+            _valid_created_at_unix(
+                safety_reports[0]
             )
         )
 
@@ -195,14 +352,17 @@ def build_current_vibe_summary(
             latest_created_at_unix
         ),
 
+        safety_latest_created_at_unix=(
+            safety_latest_created_at_unix
+        ),
+
         crowd=_consensus_value(
             current_reports,
             "crowd_level",
         ),
 
-        safety=_consensus_value(
-            current_reports,
-            "safety_level",
+        safety=_safety_pulse(
+            safety_reports,
         ),
 
         music=_consensus_value(

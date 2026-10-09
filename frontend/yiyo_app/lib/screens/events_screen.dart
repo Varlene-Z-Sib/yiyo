@@ -7,6 +7,8 @@ import 'create_event_screen.dart';
 import 'event_approvals_screen.dart';
 import 'event_details_screen.dart';
 import 'my_events_screen.dart';
+import 'manage_events_screen.dart';
+import 'admin_access_screen.dart';
 
 
 class EventsScreen extends StatefulWidget {
@@ -70,6 +72,23 @@ class _EventsScreenState
       // Event discovery remains available
       // if permission loading fails.
     }
+  }
+
+  Future<void> _openManageEvents() async {
+    await Navigator.of(
+      context,
+    ).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const ManageEventsScreen(),
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    await _refresh();
   }
 
 
@@ -231,6 +250,23 @@ class _EventsScreenState
     await _loadEvents();
   }
 
+Future<void>
+    _openAccessManagement() async {
+  await Navigator.of(
+    context,
+  ).push(
+    MaterialPageRoute(
+      builder: (_) =>
+          const AdminAccessScreen(),
+    ),
+  );
+
+  if (!mounted) {
+    return;
+  }
+
+  await _loadPermissions();
+}
 
   DateTime _effectiveEnd(
     YiyoEvent event,
@@ -1229,55 +1265,41 @@ class _EventsScreenState
             children: [
               if (_canCreateEvents)
                 FilledButton.icon(
-                  onPressed:
-                      _openCreateEvent,
-                  style:
-                      FilledButton
-                          .styleFrom(
-                    backgroundColor:
-                        Colors.white,
-                    foregroundColor:
-                        Colors.black,
+                  onPressed: _openCreateEvent,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
                   ),
-                  icon:
-                      const Icon(
-                    Icons
-                        .add_circle_outline,
-                  ),
-                  label:
-                      const Text(
-                    "Create",
-                  ),
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text("Create"),
                 ),
 
               if (_canCreateEvents)
                 OutlinedButton.icon(
-                  onPressed:
-                      _openMyEvents,
-                  icon:
-                      const Icon(
-                    Icons
-                        .event_note_outlined,
-                  ),
-                  label:
-                      const Text(
-                    "My events",
-                  ),
+                  onPressed: _openMyEvents,
+                  icon: const Icon(Icons.event_note_outlined),
+                  label: const Text("My events"),
                 ),
 
               if (_canManageApprovals)
                 OutlinedButton.icon(
-                  onPressed:
-                      _openApprovals,
-                  icon:
-                      const Icon(
-                    Icons
-                        .fact_check_outlined,
-                  ),
-                  label:
-                      const Text(
-                    "Approvals",
-                  ),
+                  onPressed: _openApprovals,
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: const Text("Approvals"),
+                ),
+
+              if (_canManageApprovals)
+                OutlinedButton.icon(
+                  onPressed: _openManageEvents,
+                  icon: const Icon(Icons.admin_panel_settings_outlined),
+                  label: const Text("Manage"),
+                ),
+
+              if (_permissions?.superAdmin == true)
+                OutlinedButton.icon(
+                  onPressed: _openAccessManagement,
+                  icon: const Icon(Icons.manage_accounts_outlined),
+                  label: const Text("Access"),
                 ),
             ],
           ),

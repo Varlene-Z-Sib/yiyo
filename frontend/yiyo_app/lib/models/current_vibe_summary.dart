@@ -1,10 +1,12 @@
 class CurrentVibeSignal {
   final String? value;
   final int agreementCount;
+  final int responseCount;
 
   const CurrentVibeSignal({
     required this.value,
     required this.agreementCount,
+    this.responseCount = 0,
   });
 
   factory CurrentVibeSignal.fromJson(
@@ -14,6 +16,7 @@ class CurrentVibeSignal {
       return const CurrentVibeSignal(
         value: null,
         agreementCount: 0,
+        responseCount: 0,
       );
     }
 
@@ -25,6 +28,8 @@ class CurrentVibeSignal {
           : rawValue,
       agreementCount:
           (json["agreement_count"] as num?)?.toInt() ?? 0,
+      responseCount:
+          (json["response_count"] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -37,6 +42,7 @@ class CurrentVibeSignal {
 class CurrentVibeSummary {
   final int reportCount;
   final int? latestCreatedAtUnix;
+  final int? safetyLatestCreatedAtUnix;
 
   final CurrentVibeSignal crowd;
   final CurrentVibeSignal safety;
@@ -49,6 +55,7 @@ class CurrentVibeSummary {
   const CurrentVibeSummary({
     required this.reportCount,
     required this.latestCreatedAtUnix,
+    this.safetyLatestCreatedAtUnix,
     required this.crowd,
     required this.safety,
     required this.music,
@@ -70,6 +77,11 @@ class CurrentVibeSummary {
 
       latestCreatedAtUnix:
           (json["latest_created_at_unix"] as num?)?.toInt(),
+
+      safetyLatestCreatedAtUnix:
+      (json["safety_latest_created_at_unix"]
+              as num?)
+          ?.toInt(),
 
       crowd: CurrentVibeSignal.fromJson(
         json["crowd"] as Map<String, dynamic>?,
@@ -103,31 +115,39 @@ class CurrentVibeSummary {
 
   factory CurrentVibeSummary.empty() {
     return const CurrentVibeSummary(
+      safetyLatestCreatedAtUnix: null,
+
       reportCount: 0,
       latestCreatedAtUnix: null,
       crowd: CurrentVibeSignal(
         value: null,
         agreementCount: 0,
+        responseCount: 0,
       ),
       safety: CurrentVibeSignal(
         value: null,
         agreementCount: 0,
+        responseCount: 0,
       ),
       music: CurrentVibeSignal(
         value: null,
         agreementCount: 0,
+        responseCount: 0,
       ),
       queue: CurrentVibeSignal(
         value: null,
         agreementCount: 0,
+        responseCount: 0,
       ),
       parkingAvailability: CurrentVibeSignal(
         value: null,
         agreementCount: 0,
+        responseCount: 0,
       ),
       parkingSafety: CurrentVibeSignal(
         value: null,
         agreementCount: 0,
+        responseCount: 0,
       ),
     );
   }
@@ -185,5 +205,53 @@ class CurrentVibeSummary {
 
     return "Updated $days "
         "day${days == 1 ? "" : "s"} ago";
+  }
+
+  DateTime? get safetyLatestDateTime {
+    if (safetyLatestCreatedAtUnix ==
+        null) {
+      return null;
+    }
+
+    return DateTime
+        .fromMillisecondsSinceEpoch(
+      safetyLatestCreatedAtUnix! * 1000,
+      isUtc: true,
+    );
+  }
+
+  String safetyFreshnessLabel({
+  DateTime? now,
+  }) {
+    final reportTime =
+        safetyLatestDateTime;
+
+    if (reportTime == null) {
+      return "No recent safety updates";
+    }
+
+    final currentTime =
+        (now ?? DateTime.now())
+            .toUtc();
+
+    final difference =
+        currentTime.difference(
+      reportTime,
+    );
+
+    if (
+        difference.isNegative ||
+        difference.inMinutes < 1) {
+      return "Updated just now";
+    }
+
+    if (difference.inMinutes < 60) {
+      return "Updated "
+          "${difference.inMinutes} min ago";
+    }
+
+    return "Updated "
+        "${difference.inHours} hr"
+        "${difference.inHours == 1 ? "" : "s"} ago";
   }
 }

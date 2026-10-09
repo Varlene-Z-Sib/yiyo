@@ -305,8 +305,15 @@ class _VenueDetailsScreenState
               )
             else if (_error != null)
               _buildErrorCard()
-            else
+           else ...[
               _buildCurrentVibe(),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              _buildSafetyPulse(),
+            ],
 
             const SizedBox(
               height: 16,
@@ -426,6 +433,270 @@ class _VenueDetailsScreenState
     );
   }
 
+  Widget _buildSafetyPulse() {
+  final safety =
+      _summary.safety;
+
+  if (!safety.hasValue) {
+    return Card(
+      child:
+          Padding(
+        padding:
+            const EdgeInsets.all(
+          16,
+        ),
+
+        child:
+            Row(
+          children: [
+            const Icon(
+              Icons
+                  .shield_outlined,
+              size:
+                  28,
+            ),
+
+            const SizedBox(
+              width:
+                  12,
+            ),
+
+            Expanded(
+              child:
+                  Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Community Safety Pulse",
+                    style:
+                        TextStyle(
+                      fontSize:
+                          16,
+                      fontWeight:
+                          FontWeight.w800,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height:
+                        4,
+                  ),
+
+                  Text(
+                    "Not enough recent "
+                    "safety updates yet.",
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.grey[
+                        600
+                      ],
+                      fontSize:
+                          13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  final value =
+      safety.value!;
+
+  IconData icon;
+
+  Color color;
+
+  switch (value) {
+    case "Comfortable":
+      icon =
+          Icons
+              .shield_outlined;
+
+      color =
+          Colors.green;
+
+      break;
+
+    case "Stay alert":
+      icon =
+          Icons
+              .visibility_outlined;
+
+      color =
+          Colors.orange;
+
+      break;
+
+    case "I feel unsafe":
+      icon =
+          Icons
+              .warning_amber_rounded;
+
+      color =
+          Colors.redAccent;
+
+      break;
+
+    default:
+      icon =
+          Icons
+              .shield_outlined;
+
+      color =
+          Colors.grey;
+  }
+
+  String evidence;
+
+  if (safety.responseCount == 1) {
+    evidence =
+        "1 recent safety response "
+        "• limited data";
+  } else {
+    evidence =
+        "${safety.responseCount} recent "
+        "safety responses";
+
+    if (
+        safety.agreementCount > 1) {
+      evidence +=
+          " • ${safety.agreementCount} agree";
+    }
+  }
+
+  return Card(
+    child:
+        Padding(
+      padding:
+          const EdgeInsets.all(
+        16,
+      ),
+
+      child:
+          Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                color:
+                    color,
+                size:
+                    28,
+              ),
+
+              const SizedBox(
+                width:
+                    10,
+              ),
+
+              const Expanded(
+                child:
+                    Text(
+                  "Community Safety Pulse",
+                  style:
+                      TextStyle(
+                    fontSize:
+                        16,
+                    fontWeight:
+                        FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(
+            height:
+                14,
+          ),
+
+          Text(
+            value,
+            style:
+                TextStyle(
+              color:
+                  color,
+              fontSize:
+                  22,
+              fontWeight:
+                  FontWeight.w900,
+            ),
+          ),
+
+          const SizedBox(
+            height:
+                5,
+          ),
+
+          Text(
+            evidence,
+            style:
+                TextStyle(
+              color:
+                  Colors.grey[
+                600
+              ],
+              fontSize:
+                  12,
+            ),
+          ),
+
+          const SizedBox(
+            height:
+                4,
+          ),
+
+          Text(
+            _summary
+                .safetyFreshnessLabel(),
+            style:
+                TextStyle(
+              color:
+                  Colors.grey[
+                600
+              ],
+              fontSize:
+                  12,
+            ),
+          ),
+
+          const SizedBox(
+            height:
+                10,
+          ),
+
+          Text(
+            "Community perception from "
+            "recent updates. This is not "
+            "a guarantee that a venue or "
+            "area is safe.",
+            style:
+                TextStyle(
+              color:
+                  Colors.grey[
+                600
+              ],
+              fontSize:
+                  11,
+              height:
+                  1.35,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
   Widget _buildCurrentVibe() {
   if (!_summary.hasCurrentReports) {
     return Card(
@@ -481,39 +752,7 @@ class _VenueDetailsScreenState
   // Crowd is part of the Quick Vibe minimum
   // contribution, so this should normally
   // always have a value.
-  if (_summary.crowd.hasValue) {
-    signalWidgets.add(
-      _buildSignalRow(
-        icon:
-            Icons.groups_outlined,
-        label: "Crowd",
-        signal:
-            _summary.crowd,
-      ),
-    );
-  }
 
-  // Safety is optional.
-  if (_summary.safety.hasValue) {
-    if (signalWidgets.isNotEmpty) {
-      signalWidgets.add(
-        const Divider(
-          height: 24,
-        ),
-      );
-    }
-
-    signalWidgets.add(
-      _buildSignalRow(
-        icon:
-            Icons.shield_outlined,
-        label:
-            "Community safety",
-        signal:
-            _summary.safety,
-      ),
-    );
-  }
 
   // Music is optional.
   if (_summary.music.hasValue) {
