@@ -337,7 +337,6 @@ def load_cached_area_venues(
         for venue in venues
     ]
 
-
     venues = (
         attach_materialized_community_states(
             venues
@@ -405,10 +404,10 @@ def get_or_build_area_venues(
 
     for venue in venues:
         venues = (
-        attach_materialized_community_states(
-            venues
+            attach_materialized_community_states(
+                venues
+            )
         )
-    )
 
     return (
         "google_places",
@@ -506,9 +505,6 @@ def score_cached_match(
 # Community state / moderation
 # ---------------------------------------------------------------------------
 
-
-
-
 def update_user_report_stats(
     uid: str,
 ):
@@ -559,7 +555,6 @@ def update_user_report_stats(
         },
         merge=True,
     )
-
 
 
 # ---------------------------------------------------------------------------
@@ -744,6 +739,107 @@ def search_venues(
                 False,
         }
 
+    # The venue may already exist in YIYO's
+    # canonical registry even when it is not
+    # part of this location's current area cache.
+    # Check venues_v2 before paying for another
+    # Google Places text search.
+    if len(query) >= 2:
+        registry_matches = (
+            search_admin_venues(
+                query=query,
+                limit=13,
+            )
+        )
+
+        if registry_matches:
+            venue_refs = [
+                db.collection(
+                    VENUES_COLLECTION
+                ).document(
+                    item["id"]
+                )
+                for item
+                in registry_matches
+            ]
+
+            docs = db.get_all(
+                venue_refs
+            )
+
+            registry_by_id = {
+                doc.id: (
+                    doc.to_dict()
+                    or {}
+                )
+                | {
+                    "id": doc.id,
+                }
+                for doc in docs
+                if doc.exists
+            }
+
+            registry_venues = []
+
+            # Preserve the ranking returned by
+            # search_admin_venues().
+            for match in registry_matches:
+                venue = (
+                    registry_by_id.get(
+                        match["id"]
+                    )
+                )
+
+                if venue is None:
+                    continue
+
+                try:
+                    venue = (
+                        apply_discovery_context(
+                            venue,
+                            lat,
+                            lng,
+                        )
+                    )
+
+                except (
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ) as e:
+                    print(
+                        "[WARN] Invalid registry "
+                        "venue during search "
+                        f"{match['id']}: {e}"
+                    )
+                    continue
+
+                registry_venues.append(
+                    venue
+                )
+
+            registry_venues = (
+                attach_materialized_community_states(
+                    registry_venues
+                )
+            )
+
+            if registry_venues:
+                return {
+                    "source":
+                        "firestore_registry_search",
+                    "best_match":
+                        registry_venues[0],
+                    "related_venues":
+                        registry_venues[1:13],
+                    "used_places_call":
+                        False,
+                    "enriched_area":
+                        False,
+                }
+
+    # Google Places is the final fallback only
+    # when YIYO does not already know the venue.
     search_results = (
         search_places_by_text(
             query,
@@ -821,8 +917,6 @@ def search_venues(
                     "place_id"
                 )
             ):
-                
-
                 seen.add(
                     place_id
                 )
@@ -855,6 +949,7 @@ def search_venues(
 # ---------------------------------------------------------------------------
 # Contributions
 # ---------------------------------------------------------------------------
+
 @app.post("/reports")
 def create_vibe_report(
     report: VibeReportCreate,
@@ -1046,6 +1141,7 @@ def create_vibe_report(
                 "Failed to save report",
         )
 
+
 @app.post("/reports/{report_id}/flag")
 def flag_report(
     report_id: str,
@@ -1124,6 +1220,7 @@ def get_reports_for_venue(
                 active_reports[:12]
             )
         )
+
         summary = (
             build_current_vibe_summary(
                 active_reports
@@ -1163,7 +1260,7 @@ def get_reports_for_venue(
             "reports":
                 public_reports,
         }
-    
+
     except Exception as e:
         print(
             "[ERROR] Failed to fetch reports "
@@ -1175,6 +1272,8 @@ def get_reports_for_venue(
             detail=
                 "Failed to fetch reports",
         )
+
+
 # ---------------------------------------------------------------------------
 # Current user / profile
 # ---------------------------------------------------------------------------
@@ -1231,6 +1330,7 @@ def get_my_profile(
 
     return profile.model_dump()
 
+
 @app.delete("/me")
 def delete_my_account(
     current_user=Depends(
@@ -1282,6 +1382,7 @@ def delete_my_account(
         "deleted":
             True,
     }
+
 
 @app.patch("/me")
 def update_my_profile(
@@ -1339,6 +1440,7 @@ def update_my_profile(
 
     return profile.model_dump()
 
+
 @app.get("/me/event-approvals")
 def get_my_event_approvals(
     limit: int = Query(
@@ -1371,6 +1473,7 @@ def get_my_event_approvals(
             for event in events
         ],
     }
+
 
 @app.get("/me/reports")
 def get_my_reports(
@@ -1410,6 +1513,7 @@ def get_my_reports(
         ],
     }
 
+
 @app.get("/me/events")
 def get_my_events(
     limit: int = Query(
@@ -1439,6 +1543,7 @@ def get_my_events(
         ],
     }
 
+
 @app.get("/me/permissions")
 def get_my_permissions(
     current_user=Depends(
@@ -1457,6 +1562,7 @@ def get_my_permissions(
         )
     )
 
+
 @app.get("/moderation/access-check")
 def moderation_access_check(
     current_user=Depends(
@@ -1473,6 +1579,7 @@ def moderation_access_check(
         "app_role":
             auth.app_role.value,
     }
+
 
 @app.get(
     "/admin/users/by-username/"
@@ -1495,6 +1602,7 @@ def admin_get_user_by_username(
         )
     )
 
+
 @app.get("/admin/access-check")
 def admin_access_check(
     current_user=Depends(
@@ -1511,6 +1619,7 @@ def admin_access_check(
         "app_role":
             auth.app_role.value,
     }
+
 
 @app.post("/admin/memberships")
 def admin_grant_membership(
@@ -1546,6 +1655,7 @@ def admin_grant_membership(
         )
     )
 
+
 @app.post(
     "/admin/memberships/"
     "{membership_id}/suspend"
@@ -1578,6 +1688,8 @@ def admin_suspend_membership(
             mode="json"
         )
     )
+
+
 # ---------------------------------------------------------------------------
 # Events
 # ---------------------------------------------------------------------------
@@ -1608,6 +1720,7 @@ def list_upcoming_events(
         ],
     }
 
+
 @app.post(
     "/events/{event_id}/cancel"
 )
@@ -1628,6 +1741,7 @@ def cancel_yiyo_event(
         mode="json"
     )
 
+
 @app.get("/events/{event_id}")
 def get_event(
     event_id: str,
@@ -1641,6 +1755,7 @@ def get_event(
     return event.model_dump(
         mode="json"
     )
+
 
 @app.post(
     "/events",
@@ -1670,6 +1785,7 @@ def create_yiyo_event(
         mode="json"
     )
 
+
 @app.post(
     "/events/{event_id}/reject"
 )
@@ -1692,6 +1808,7 @@ def reject_yiyo_event(
         mode="json"
     )
 
+
 @app.post(
     "/events/{event_id}/approve"
 )
@@ -1711,6 +1828,7 @@ def approve_yiyo_event(
     return event.model_dump(
         mode="json"
     )
+
 
 @app.post(
     "/events/{event_id}/hype"
@@ -1794,6 +1912,7 @@ def get_my_event_engagement(
         mode="json"
     )
 
+
 @app.patch(
     "/events/{event_id}"
 )
@@ -1819,6 +1938,7 @@ def edit_event(
         mode="json"
     )
 
+
 @app.delete(
     "/events/{event_id}"
 )
@@ -1835,6 +1955,7 @@ def remove_event(
         current_user=
             current_user,
     )
+
 
 @app.get(
     "/me/manageable-events"
@@ -1870,6 +1991,7 @@ def my_manageable_events(
         ],
     }
 
+
 @app.get(
     "/admin/venues/search"
 )
@@ -1900,22 +2022,29 @@ def admin_search_venues(
             venues,
     }
 
+
 @app.get(
-    "/me/access-summary"
+    "/venues/registry-search"
 )
-def get_my_access_summary(
+def search_venue_registry(
+    q: str,
+    limit: int = 20,
+
     current_user=Depends(
         get_current_user
     ),
 ):
-    return get_profile_access_summary(
-        current_user
-    )
+    if limit < 1 or limit > 50:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid venue search limit",
+        )
+
     # Authenticated YIYO users may search
     # venues already known to YIYO.
     #
-    # IMPORTANT:
-    # This does NOT call Google Places.
+    # This searches venues_v2 only and does
+    # not call Google Places.
     venues = (
         search_admin_venues(
             query=q,
@@ -1930,6 +2059,7 @@ def get_my_access_summary(
         "venues":
             venues,
     }
+
 
 @app.get(
     "/me/access-summary"

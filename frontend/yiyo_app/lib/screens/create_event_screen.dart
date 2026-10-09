@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/venue_lookup_option.dart';
 import '../services/api_service.dart';
+import '../services/draft_storage_service.dart';
 
 
 class CreateEventScreen
@@ -18,7 +21,8 @@ class CreateEventScreen
 
 
 class _CreateEventScreenState
-    extends State<CreateEventScreen> {
+    extends State<CreateEventScreen>
+    with WidgetsBindingObserver {
   final _titleController =
       TextEditingController();
 
@@ -52,24 +56,351 @@ class _CreateEventScreenState
 
   String? _venueSearchError;
 
+  Timer? _draftSaveDebounce;
 
-  @override
-  void dispose() {
-    _titleController.dispose();
+  bool _restoringDraft = true;
 
-    _descriptionController.dispose();
+@override
+void initState() {
+  super.initState();
 
-    _venueSearchController.dispose();
+    WidgetsBinding.instance.addObserver(
+      this,
+    );
 
-    _ticketUrlController.dispose();
+    _titleController.addListener(
+      _scheduleDraftSave,
+    );
 
-    _posterUrlController.dispose();
+    _descriptionController.addListener(
+      _scheduleDraftSave,
+    );
 
-    _tagsController.dispose();
+    _ticketUrlController.addListener(
+      _scheduleDraftSave,
+    );
 
-    super.dispose();
+    _posterUrlController.addListener(
+      _scheduleDraftSave,
+    );
+
+    _tagsController.addListener(
+      _scheduleDraftSave,
+    );
+
+    _restoreDraft();
   }
 
+@override
+void didChangeAppLifecycleState(
+  AppLifecycleState state,
+) {
+  if (
+      state == AppLifecycleState.inactive ||
+      state == AppLifecycleState.paused ||
+      state == AppLifecycleState.detached) {
+    _draftSaveDebounce?.cancel();
+
+    _saveDraft();
+  }
+}
+
+  @override
+void dispose() {
+  // If the user backs out quickly,
+  // capture the latest values before
+  // the controllers are destroyed.
+  _saveDraft();
+
+  WidgetsBinding.instance.removeObserver(
+    this,
+  );
+
+  _draftSaveDebounce?.cancel();
+
+  _titleController.removeListener(
+    _scheduleDraftSave,
+  );
+
+  _descriptionController.removeListener(
+    _scheduleDraftSave,
+  );
+
+  _ticketUrlController.removeListener(
+    _scheduleDraftSave,
+  );
+
+  _posterUrlController.removeListener(
+    _scheduleDraftSave,
+  );
+
+  _tagsController.removeListener(
+    _scheduleDraftSave,
+  );
+
+  _titleController.dispose();
+
+  _descriptionController.dispose();
+
+  _venueSearchController.dispose();
+
+  _ticketUrlController.dispose();
+
+  _posterUrlController.dispose();
+
+  _tagsController.dispose();
+
+  super.dispose();
+}
+
+void _scheduleDraftSave() {
+  if (_restoringDraft) {
+    return;
+  }
+
+  _draftSaveDebounce?.cancel();
+
+  _draftSaveDebounce =
+      Timer(
+    const Duration(
+      milliseconds: 350,
+    ),
+    _saveDraft,
+  );
+}
+
+
+bool _hasDraftContent() {
+  return _titleController.text
+          .trim()
+          .isNotEmpty ||
+      _descriptionController.text
+          .trim()
+          .isNotEmpty ||
+      _selectedVenue != null ||
+      _startsAt != null ||
+      _endsAt != null ||
+      _tagsController.text
+          .trim()
+          .isNotEmpty ||
+      _ticketUrlController.text
+          .trim()
+          .isNotEmpty ||
+      _posterUrlController.text
+          .trim()
+          .isNotEmpty;
+}
+
+
+Map<String, dynamic> _draftData() {
+  final venue =
+      _selectedVenue;
+
+  return {
+    "title":
+        _titleController.text,
+
+    "description":
+        _descriptionController.text,
+
+    "venue":
+        venue == null
+            ? null
+            : {
+                "id":
+                    venue.id,
+
+                "name":
+                    venue.name,
+
+                "address":
+                    venue.address,
+              },
+
+    "starts_at":
+        _startsAt
+            ?.toIso8601String(),
+
+    "ends_at":
+        _endsAt
+            ?.toIso8601String(),
+
+    "tags":
+        _tagsController.text,
+
+    "ticket_url":
+        _ticketUrlController.text,
+
+    "poster_url":
+        _posterUrlController.text,
+  };
+}
+
+
+Future<void> _saveDraft() async {
+  if (
+      _restoringDraft ||
+      _submitting) {
+    return;
+  }
+
+  if (!_hasDraftContent()) {
+    await DraftStorageService
+        .clearCreateEventDraft();
+
+    return;
+  }
+
+  await DraftStorageService
+      .saveCreateEventDraft(
+    _draftData(),
+  );
+}
+
+
+DateTime? _draftDate(
+  dynamic value,
+) {
+  if (value == null) {
+    return null;
+  }
+
+  return DateTime.tryParse(
+    value.toString(),
+  );
+}
+
+
+Future<void> _restoreDraft() async {
+  try {
+    final draft =
+        await DraftStorageService
+            .loadCreateEventDraft();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (draft == null) {
+      _restoringDraft = false;
+      return;
+    }
+
+    final startsAt =
+        _draftDate(
+      draft["starts_at"],
+    );
+
+    // Don't restore an event start
+    // time that has already passed.
+    final validStart =
+        startsAt != null &&
+                startsAt.isAfter(
+                  DateTime.now(),
+                )
+            ? startsAt
+            : null;
+
+    final endsAt =
+        _draftDate(
+      draft["ends_at"],
+    );
+
+    final validEnd =
+        validStart != null &&
+                endsAt != null &&
+                endsAt.isAfter(
+                  validStart,
+                )
+            ? endsAt
+            : null;
+
+    VenueLookupOption? venue;
+
+    final venueData =
+        draft["venue"];
+
+    if (venueData is Map) {
+      final id =
+          (venueData["id"] ?? "")
+              .toString()
+              .trim();
+
+      if (id.isNotEmpty) {
+        venue =
+            VenueLookupOption(
+          id:
+              id,
+
+          name:
+              (venueData["name"] ?? "")
+                  .toString()
+                  .trim(),
+
+          address:
+              (venueData["address"] ?? "")
+                  .toString()
+                  .trim(),
+        );
+      }
+    }
+
+    _titleController.text =
+        (draft["title"] ?? "")
+            .toString();
+
+    _descriptionController.text =
+        (draft["description"] ?? "")
+            .toString();
+
+    _tagsController.text =
+        (draft["tags"] ?? "")
+            .toString();
+
+    _ticketUrlController.text =
+        (draft["ticket_url"] ?? "")
+            .toString();
+
+    _posterUrlController.text =
+        (draft["poster_url"] ?? "")
+            .toString();
+
+    setState(() {
+      _selectedVenue =
+          venue;
+
+      _startsAt =
+          validStart;
+
+      _endsAt =
+          validEnd;
+
+      if (venue != null) {
+        _venueSearchController.text =
+            venue.name;
+      }
+    });
+
+    _restoringDraft = false;
+
+    WidgetsBinding.instance
+        .addPostFrameCallback(
+      (_) {
+        if (!mounted) {
+          return;
+        }
+
+        _showMessage(
+          "Event draft restored.",
+        );
+      },
+    );
+  } catch (_) {
+    // Draft persistence must never
+    // stop Create Event from opening.
+    _restoringDraft = false;
+  }
+}
 
   void _showMessage(
     String message,
@@ -202,6 +533,8 @@ class _CreateEventScreenState
     FocusScope.of(
       context,
     ).unfocus();
+
+    _scheduleDraftSave();
   }
 
 
@@ -219,6 +552,8 @@ class _CreateEventScreenState
       _venueSearchController
           .clear();
     });
+
+    _scheduleDraftSave();
   }
 
 
@@ -321,6 +656,8 @@ class _CreateEventScreenState
             null;
       }
     });
+
+    _scheduleDraftSave();
   }
 
 
@@ -370,6 +707,8 @@ class _CreateEventScreenState
       _endsAt =
           value;
     });
+
+    _scheduleDraftSave();
   }
 
 
@@ -510,14 +849,27 @@ class _CreateEventScreenState
       return;
     }
 
-    FocusScope.of(
-      context,
-    ).unfocus();
+    _draftSaveDebounce?.cancel();
 
-    setState(() {
-      _submitting =
-          true;
-    });
+      await _saveDraft();
+
+      if (!mounted) {
+        return;
+      }
+
+      FocusScope.of(
+        context,
+      ).unfocus();
+
+      setState(() {
+        _submitting =
+            true;
+      });
+
+      setState(() {
+        _submitting =
+            true;
+      });
 
     try {
       final event =
@@ -551,6 +903,10 @@ class _CreateEventScreenState
         tags:
             _tags(),
       );
+      _draftSaveDebounce?.cancel();
+
+      await DraftStorageService
+          .clearCreateEventDraft();
 
       if (!mounted) {
         return;
@@ -1056,15 +1412,17 @@ class _CreateEventScreenState
                     true,
 
                 onClear:
-                    _endsAt == null
-                        ? null
-                        : () {
-                            setState(() {
-                              _endsAt =
-                                  null;
-                            });
-                          },
-              ),
+                  _endsAt == null
+                      ? null
+                      : () {
+                          setState(() {
+                            _endsAt =
+                                null;
+                          });
+
+                          _scheduleDraftSave();
+                        },
+                      ),
 
               const SizedBox(
                 height: 24,
