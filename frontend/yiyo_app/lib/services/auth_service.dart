@@ -61,15 +61,25 @@ class AuthService {
   }
 
 
+  // ---------------------------------------------------------------------------
+  // Email / password signup
+  // ---------------------------------------------------------------------------
+
   static Future<void> signUp({
     required String email,
     required String password,
     required String username,
   }) async {
+    final cleanEmail =
+        email.trim();
+
+    final cleanUsername =
+        username.trim();
+
     final credential =
         await _auth
             .createUserWithEmailAndPassword(
-      email: email,
+      email: cleanEmail,
       password: password,
     );
 
@@ -78,22 +88,40 @@ class AuthService {
 
     if (user == null) {
       throw FirebaseAuthException(
-        code: "user-creation-failed",
+        code:
+            "user-creation-failed",
+
         message:
             "Your account could not be created.",
       );
     }
 
-    await user.updateDisplayName(
-      username,
-    );
+    // For email signup, the username entered on
+    // the signup screen becomes the initial YIYO
+    // username immediately.
+      await user.updateDisplayName(
+          cleanUsername,
+        );
 
-    await _createUserDocumentIfNeeded(
+        await _createUserDocumentIfNeeded(
       user: user,
-      displayName: username,
+
+      // Preserve what they typed so we
+      // can prefill Make YIYO yours.
+      displayName:
+          cleanUsername,
+
+      // Do not finalize the YIYO username
+      // until onboarding is completed.
+      username:
+          "",
     );
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Email / password login
+  // ---------------------------------------------------------------------------
 
   static Future<void> signIn({
     required String email,
@@ -101,11 +129,18 @@ class AuthService {
   }) async {
     await _auth
         .signInWithEmailAndPassword(
-      email: email,
-      password: password,
+      email:
+          email.trim(),
+
+      password:
+          password,
     );
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Google sign-in
+  // ---------------------------------------------------------------------------
 
   static Future<void>
       signInWithGoogle() async {
@@ -123,7 +158,9 @@ class AuthService {
 
     if (idToken == null) {
       throw FirebaseAuthException(
-        code: "google-token-missing",
+        code:
+            "google-token-missing",
+
         message:
             "Google sign-in could not be completed.",
       );
@@ -131,7 +168,8 @@ class AuthService {
 
     final credential =
         GoogleAuthProvider.credential(
-      idToken: idToken,
+      idToken:
+          idToken,
     );
 
     final result =
@@ -145,19 +183,35 @@ class AuthService {
 
     if (user == null) {
       throw FirebaseAuthException(
-        code: "google-sign-in-failed",
+        code:
+            "google-sign-in-failed",
+
         message:
             "Google sign-in could not be completed.",
       );
     }
 
+    // Google display name is NOT automatically
+    // treated as the YIYO username.
+    //
+    // A first-time Google user should still
+    // choose their unique YIYO username once.
     await _createUserDocumentIfNeeded(
-      user: user,
+      user:
+          user,
+
       displayName:
           user.displayName ?? "",
+
+      username:
+          "",
     );
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Re-authentication
+  // ---------------------------------------------------------------------------
 
   static Future<void>
       reauthenticateWithPassword(
@@ -168,7 +222,9 @@ class AuthService {
 
     if (user == null) {
       throw FirebaseAuthException(
-        code: "no-current-user",
+        code:
+            "no-current-user",
+
         message:
             "You are no longer signed in.",
       );
@@ -179,7 +235,9 @@ class AuthService {
 
     if (email.isEmpty) {
       throw FirebaseAuthException(
-        code: "email-unavailable",
+        code:
+            "email-unavailable",
+
         message:
             "This account does not have an email address.",
       );
@@ -187,8 +245,11 @@ class AuthService {
 
     final credential =
         EmailAuthProvider.credential(
-      email: email,
-      password: password,
+      email:
+          email,
+
+      password:
+          password,
     );
 
     await user
@@ -211,7 +272,9 @@ class AuthService {
 
     if (user == null) {
       throw FirebaseAuthException(
-        code: "no-current-user",
+        code:
+            "no-current-user",
+
         message:
             "You are no longer signed in.",
       );
@@ -236,7 +299,9 @@ class AuthService {
 
       if (idToken == null) {
         throw FirebaseAuthException(
-          code: "google-token-missing",
+          code:
+              "google-token-missing",
+
           message:
               "Google verification could not be completed.",
         );
@@ -244,7 +309,8 @@ class AuthService {
 
       final credential =
           GoogleAuthProvider.credential(
-        idToken: idToken,
+        idToken:
+            idToken,
       );
 
       await user
@@ -270,10 +336,15 @@ class AuthService {
   }
 
 
+  // ---------------------------------------------------------------------------
+  // Firestore user document
+  // ---------------------------------------------------------------------------
+
   static Future<void>
       _createUserDocumentIfNeeded({
     required User user,
     required String displayName,
+    required String username,
   }) async {
     final ref =
         _firestore
@@ -291,6 +362,12 @@ class AuthService {
       return;
     }
 
+    final cleanDisplayName =
+        displayName.trim();
+
+    final cleanUsername =
+        username.trim();
+
     await ref.set(
       {
         "uid":
@@ -299,8 +376,25 @@ class AuthService {
         "email":
             user.email ?? "",
 
+        // Human-facing display value.
+        //
+        // For email signup this initially
+        // matches the username.
+        //
+        // For Google it can contain the
+        // Google account's display name.
         "display_name":
-            displayName.trim(),
+            cleanDisplayName,
+
+        // Actual YIYO username.
+        //
+        // Email signup already chose this
+        // on AuthScreen, so save it now.
+        //
+        // Google leaves this blank until
+        // the user chooses one.
+        "username":
+            cleanUsername,
 
         "created_at":
             DateTime.now()
@@ -317,21 +411,34 @@ class AuthService {
   }
 
 
+  // ---------------------------------------------------------------------------
+  // Password reset
+  // ---------------------------------------------------------------------------
+
   static Future<void>
       sendPasswordResetEmail({
     required String email,
   }) async {
     await _auth
         .sendPasswordResetEmail(
-      email: email,
+      email:
+          email.trim(),
     );
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Logout
+  // ---------------------------------------------------------------------------
 
   static Future<void> signOut() async {
     await _auth.signOut();
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Deleted-account cleanup
+  // ---------------------------------------------------------------------------
 
   static Future<void>
       finishDeletedAccountSession() async {
@@ -350,6 +457,10 @@ class AuthService {
     }
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Firebase token
+  // ---------------------------------------------------------------------------
 
   static Future<String?> getIdToken({
     bool forceRefresh = false,
