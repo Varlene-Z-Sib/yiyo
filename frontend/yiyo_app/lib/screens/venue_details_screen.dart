@@ -220,16 +220,29 @@ class _VenueDetailsScreenState
         widget.venue;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          venue.name,
-        ),
+    appBar: AppBar(
+      title: Text(
+        venue.name,
       ),
-      body:
+    ),
+
+    body:
+        SafeArea(
+      // The AppBar already handles the
+      // top system inset. We only need
+      // protection from the phone's
+      // bottom navigation area here.
+      top:
+          false,
+
+      child:
           SingleChildScrollView(
         padding:
-            const EdgeInsets.all(
+            const EdgeInsets.fromLTRB(
           16,
+          16,
+          16,
+          24,
         ),
         child: Column(
           crossAxisAlignment:
@@ -391,6 +404,7 @@ class _VenueDetailsScreenState
           ],
         ),
       ),
+    ),
     );
   }
 

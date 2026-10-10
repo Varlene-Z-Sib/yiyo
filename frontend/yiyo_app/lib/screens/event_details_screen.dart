@@ -472,6 +472,12 @@ class _EventDetailsScreenState
       ),
 
       body:
+        SafeArea(
+      // AppBar already handles the top inset.
+      top:
+          false,
+
+      child:
           SingleChildScrollView(
         padding:
             const EdgeInsets.only(
@@ -964,9 +970,9 @@ class _EventDetailsScreenState
           ],
         ),
       ),
+      ),
     );
   }
-
 
   Widget _buildLiveBadge() {
     return Container(
