@@ -22,7 +22,8 @@ class MapScreen extends StatefulWidget {
 }
 
 
-class _MapScreenState extends State<MapScreen>
+class _MapScreenState
+    extends State<MapScreen>
     with WidgetsBindingObserver {
   GoogleMapController? _mapController;
 
@@ -49,13 +50,9 @@ class _MapScreenState extends State<MapScreen>
   );
 
   bool _isLoading = true;
-
   bool _locationReady = false;
-
   bool _showYiyoOnly = false;
-
   bool _isRecoveringLocation = false;
-
   bool _isNearbyExpanded = false;
 
   String? _errorMessage;
@@ -102,6 +99,7 @@ class _MapScreenState extends State<MapScreen>
     );
   }
 
+
   void _toggleNearbyPanel() {
     _dismissKeyboard();
 
@@ -110,6 +108,7 @@ class _MapScreenState extends State<MapScreen>
           !_isNearbyExpanded;
     });
   }
+
 
   Future<void>
       _handleLocationServiceStatus(
@@ -123,9 +122,11 @@ class _MapScreenState extends State<MapScreen>
         status ==
         ServiceStatus.disabled) {
       setState(() {
-        _locationReady = false;
+        _locationReady =
+            false;
 
-        _isLoading = false;
+        _isLoading =
+            false;
 
         _errorMessage =
             "Location services are disabled.";
@@ -153,9 +154,7 @@ class _MapScreenState extends State<MapScreen>
         ?.cancel();
 
     _searchController.dispose();
-
     _searchFocusNode.dispose();
-
     _mapController?.dispose();
 
     super.dispose();
@@ -192,7 +191,8 @@ class _MapScreenState extends State<MapScreen>
   }
 
 
-  Future<void> _recoverLocation() async {
+  Future<void>
+      _recoverLocation() async {
     if (_isRecoveringLocation) {
       return;
     }
@@ -202,7 +202,8 @@ class _MapScreenState extends State<MapScreen>
     }
 
     setState(() {
-      _isRecoveringLocation = true;
+      _isRecoveringLocation =
+          true;
     });
 
     try {
@@ -216,9 +217,11 @@ class _MapScreenState extends State<MapScreen>
       }
 
       setState(() {
-        _errorMessage = null;
+        _errorMessage =
+            null;
 
-        _isLoading = true;
+        _isLoading =
+            true;
       });
 
       await _loadCurrentView();
@@ -233,7 +236,8 @@ class _MapScreenState extends State<MapScreen>
   }
 
 
-  Future<bool> _getUserLocation() async {
+  Future<bool>
+      _getUserLocation() async {
     try {
       final serviceEnabled =
           await Geolocator
@@ -245,9 +249,11 @@ class _MapScreenState extends State<MapScreen>
         }
 
         setState(() {
-          _locationReady = false;
+          _locationReady =
+              false;
 
-          _isLoading = false;
+          _isLoading =
+              false;
 
           _errorMessage =
               "Location services are disabled.";
@@ -279,9 +285,11 @@ class _MapScreenState extends State<MapScreen>
         }
 
         setState(() {
-          _locationReady = false;
+          _locationReady =
+              false;
 
-          _isLoading = false;
+          _isLoading =
+              false;
 
           _errorMessage =
               "Location permission was denied.";
@@ -334,6 +342,10 @@ class _MapScreenState extends State<MapScreen>
 
       return true;
     } catch (e) {
+      debugPrint(
+        "[LOCATION] Failed to get location: $e",
+      );
+
       if (!mounted) {
         return false;
       }
@@ -346,7 +358,8 @@ class _MapScreenState extends State<MapScreen>
             false;
 
         _errorMessage =
-            "Location error: $e";
+            "Couldn't get your location. "
+            "Please try again.";
       });
 
       return false;
@@ -395,7 +408,8 @@ class _MapScreenState extends State<MapScreen>
     if (!_locationReady) {
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _isLoading =
+              false;
 
           _errorMessage ??=
               "Turn on location to see "
@@ -440,13 +454,16 @@ class _MapScreenState extends State<MapScreen>
             const MarkerId(
           "user",
         ),
+
         position:
             _currentLocation,
+
         icon:
             BitmapDescriptor
                 .defaultMarkerWithHue(
           BitmapDescriptor.hueAzure,
         ),
+
         infoWindow:
             const InfoWindow(
           title:
@@ -462,11 +479,13 @@ class _MapScreenState extends State<MapScreen>
               MarkerId(
             venue.id,
           ),
+
           position:
               LatLng(
             venue.lat,
             venue.lng,
           ),
+
           icon:
               BitmapDescriptor
                   .defaultMarkerWithHue(
@@ -474,6 +493,7 @@ class _MapScreenState extends State<MapScreen>
               venue.rating,
             ),
           ),
+
           onTap: () {
             if (!mounted) {
               return;
@@ -525,7 +545,8 @@ class _MapScreenState extends State<MapScreen>
   }
 
 
-  Future<void> _loadVenues() async {
+  Future<void>
+      _loadVenues() async {
     if (!mounted) {
       return;
     }
@@ -535,9 +556,11 @@ class _MapScreenState extends State<MapScreen>
     }
 
     setState(() {
-      _isLoading = true;
+      _isLoading =
+          true;
 
-      _errorMessage = null;
+      _errorMessage =
+          null;
     });
 
     try {
@@ -547,6 +570,7 @@ class _MapScreenState extends State<MapScreen>
         lat:
             _currentLocation
                 .latitude,
+
         lng:
             _currentLocation
                 .longitude,
@@ -567,18 +591,24 @@ class _MapScreenState extends State<MapScreen>
         );
       }
     } catch (e) {
+      debugPrint(
+        "[VENUES] Failed to load venues: $e",
+      );
+
       if (!mounted) {
         return;
       }
 
       setState(() {
         _errorMessage =
-            "Failed to load venues: $e";
+            "Couldn't load nearby venues. "
+            "Please try again.";
       });
     } finally {
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _isLoading =
+              false;
         });
       }
     }
@@ -596,9 +626,11 @@ class _MapScreenState extends State<MapScreen>
     }
 
     setState(() {
-      _isLoading = true;
+      _isLoading =
+          true;
 
-      _errorMessage = null;
+      _errorMessage =
+          null;
     });
 
     try {
@@ -608,6 +640,7 @@ class _MapScreenState extends State<MapScreen>
         lat:
             _currentLocation
                 .latitude,
+
         lng:
             _currentLocation
                 .longitude,
@@ -617,18 +650,24 @@ class _MapScreenState extends State<MapScreen>
         venues,
       );
     } catch (e) {
+      debugPrint(
+        "[YIYO] Failed to load YIYO venues: $e",
+      );
+
       if (!mounted) {
         return;
       }
 
       setState(() {
         _errorMessage =
-            "Failed to load YIYO venues: $e";
+            "Couldn't load YIYO venues. "
+            "Please try again.";
       });
     } finally {
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _isLoading =
+              false;
         });
       }
     }
@@ -655,9 +694,11 @@ class _MapScreenState extends State<MapScreen>
     _dismissKeyboard();
 
     setState(() {
-      _isLoading = true;
+      _isLoading =
+          true;
 
-      _errorMessage = null;
+      _errorMessage =
+          null;
     });
 
     try {
@@ -666,23 +707,28 @@ class _MapScreenState extends State<MapScreen>
               .searchVenues(
         query:
             query,
+
         lat:
             _currentLocation
                 .latitude,
+
         lng:
             _currentLocation
                 .longitude,
+
         enrichArea:
             false,
       );
 
       final Venue? bestMatch =
-          result["best_match"]
-              as Venue?;
+          result[
+            "best_match"
+          ] as Venue?;
 
       final List<Venue> related =
-          result["related_venues"]
-              as List<Venue>;
+          result[
+            "related_venues"
+          ] as List<Venue>;
 
       final combined =
           <Venue>[];
@@ -701,9 +747,10 @@ class _MapScreenState extends State<MapScreen>
       }
 
       for (final venue in related) {
-        if (!seen.contains(
-          venue.id,
-        )) {
+        if (
+            !seen.contains(
+              venue.id,
+            )) {
           combined.add(
             venue,
           );
@@ -723,41 +770,25 @@ class _MapScreenState extends State<MapScreen>
           bestMatch,
         );
       }
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content:
-              Text(
-            result["used_places_call"] ==
-                    true
-                ? "Search used Places API"
-                : "Search found cached result",
-          ),
-          duration:
-              const Duration(
-            seconds: 2,
-          ),
-        ),
-      );
     } catch (e) {
+      debugPrint(
+        "[SEARCH] Venue search failed: $e",
+      );
+
       if (!mounted) {
         return;
       }
 
       setState(() {
         _errorMessage =
-            "Search failed: $e";
+            "Couldn't search right now. "
+            "Please try again.";
       });
     } finally {
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _isLoading =
+              false;
         });
       }
     }
@@ -827,7 +858,8 @@ class _MapScreenState extends State<MapScreen>
       return "YIYO";
     }
 
-    if (raw ==
+    if (
+        raw ==
         "NOT YIYO") {
       return "NOT YIYO";
     }
@@ -848,7 +880,8 @@ class _MapScreenState extends State<MapScreen>
       return Colors.green;
     }
 
-    if (badge ==
+    if (
+        badge ==
         "NOT YIYO") {
       return Colors.red;
     }
@@ -864,6 +897,7 @@ class _MapScreenState extends State<MapScreen>
         await showVibeReportSheet(
       context:
           context,
+
       venue:
           venue,
     );
@@ -917,47 +951,66 @@ class _MapScreenState extends State<MapScreen>
     await _loadCurrentView();
   }
 
+
   Widget _buildSearchBar() {
     return Positioned(
-      top: 16,
-      left: 16,
-      right: 16,
-      child: Material(
-        elevation: 5,
+      top:
+          16,
+
+      left:
+          16,
+
+      right:
+          16,
+
+      child:
+          Material(
+        elevation:
+            5,
+
         borderRadius:
             BorderRadius.circular(
           16,
         ),
-        child: Row(
+
+        child:
+            Row(
           children: [
             Expanded(
-              child: TextField(
+              child:
+                  TextField(
                 controller:
                     _searchController,
+
                 focusNode:
                     _searchFocusNode,
+
                 textInputAction:
-                    TextInputAction
-                        .search,
+                    TextInputAction.search,
+
                 onSubmitted:
                     (value) {
-                  if (value
-                      .trim()
-                      .isNotEmpty) {
+                  if (
+                      value
+                          .trim()
+                          .isNotEmpty) {
                     _performSearch(
                       value.trim(),
                     );
                   }
                 },
+
                 decoration:
                     InputDecoration(
                   hintText:
                       "Search places like "
                       "Drama, LIV, Piano Bar...",
+
                   prefixIcon:
                       const Icon(
                     Icons.search,
                   ),
+
                   border:
                       OutlineInputBorder(
                     borderRadius:
@@ -965,6 +1018,7 @@ class _MapScreenState extends State<MapScreen>
                             .circular(
                       16,
                     ),
+
                     borderSide:
                         BorderSide.none,
                   ),
@@ -973,33 +1027,36 @@ class _MapScreenState extends State<MapScreen>
             ),
 
             IconButton(
-              onPressed: () {
+              onPressed:
+                  () {
                 final query =
                     _searchController
                         .text
                         .trim();
 
-                if (query
-                    .isNotEmpty) {
+                if (
+                    query.isNotEmpty) {
                   _performSearch(
                     query,
                   );
                 }
               },
+
               icon:
                   const Icon(
-                Icons
-                    .arrow_forward,
+                Icons.arrow_forward,
               ),
             ),
 
-            if (_searchController
-                .text
-                .trim()
-                .isNotEmpty)
+            if (
+                _searchController
+                    .text
+                    .trim()
+                    .isNotEmpty)
               IconButton(
                 onPressed:
                     _clearSearch,
+
                 icon:
                     const Icon(
                   Icons.close,
@@ -1014,19 +1071,29 @@ class _MapScreenState extends State<MapScreen>
 
   Widget _buildModeChips() {
     return Positioned(
-      top: 86,
-      left: 16,
-      right: 16,
-      child: Row(
+      top:
+          86,
+
+      left:
+          16,
+
+      right:
+          16,
+
+      child:
+          Row(
         children: [
           ChoiceChip(
             label:
                 const Text(
               "All",
             ),
+
             selected:
                 !_showYiyoOnly,
-            onSelected: (_) {
+
+            onSelected:
+                (_) {
               _dismissKeyboard();
 
               setState(() {
@@ -1034,17 +1101,19 @@ class _MapScreenState extends State<MapScreen>
                     false;
               });
 
-              if (_searchController
-                  .text
-                  .trim()
-                  .isEmpty) {
+              if (
+                  _searchController
+                      .text
+                      .trim()
+                      .isEmpty) {
                 _loadCurrentView();
               }
             },
           ),
 
           const SizedBox(
-            width: 8,
+            width:
+                8,
           ),
 
           ChoiceChip(
@@ -1052,9 +1121,12 @@ class _MapScreenState extends State<MapScreen>
                 const Text(
               "YIYO Now",
             ),
+
             selected:
                 _showYiyoOnly,
-            onSelected: (_) {
+
+            onSelected:
+                (_) {
               _dismissKeyboard();
 
               setState(() {
@@ -1062,10 +1134,11 @@ class _MapScreenState extends State<MapScreen>
                     true;
               });
 
-              if (_searchController
-                  .text
-                  .trim()
-                  .isEmpty) {
+              if (
+                  _searchController
+                      .text
+                      .trim()
+                      .isEmpty) {
                 _loadCurrentView();
               }
             },
@@ -1082,26 +1155,40 @@ class _MapScreenState extends State<MapScreen>
     }
 
     return Positioned(
-      top: 128,
-      left: 16,
-      right: 16,
-      child: Material(
+      top:
+          128,
+
+      left:
+          16,
+
+      right:
+          16,
+
+      child:
+          Material(
         color:
             Colors.red.shade700,
+
         borderRadius:
             BorderRadius.circular(
           12,
         ),
-        child: Padding(
+
+        child:
+            Padding(
           padding:
               const EdgeInsets.all(
             12,
           ),
-          child: Row(
+
+          child:
+              Row(
             children: [
               Expanded(
-                child: Text(
+                child:
+                    Text(
                   _errorMessage!,
+
                   style:
                       const TextStyle(
                     color:
@@ -1112,7 +1199,8 @@ class _MapScreenState extends State<MapScreen>
 
               if (!_locationReady) ...[
                 const SizedBox(
-                  width: 8,
+                  width:
+                      8,
                 ),
 
                 TextButton(
@@ -1120,15 +1208,18 @@ class _MapScreenState extends State<MapScreen>
                       _isRecoveringLocation
                           ? null
                           : _recoverLocation,
+
                   child:
                       Text(
                     _isRecoveringLocation
                         ? "CHECKING..."
                         : "TRY AGAIN",
+
                     style:
                         const TextStyle(
                       color:
                           Colors.white,
+
                       fontWeight:
                           FontWeight.bold,
                     ),
@@ -1144,305 +1235,358 @@ class _MapScreenState extends State<MapScreen>
 
 
   Widget _buildTopSpotsPanel() {
-  return Positioned(
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height:
-        _isNearbyExpanded
-            ? MediaQuery.of(context)
-                    .size
-                    .height *
-                0.42
-            : 82,
-    child: AnimatedContainer(
-      duration:
-          const Duration(
-        milliseconds: 220,
-      ),
-      curve:
-          Curves.easeOut,
-      decoration:
-          const BoxDecoration(
-        color:
-            Color(
-          0xFF111111,
+    return Positioned(
+      left:
+          0,
+
+      right:
+          0,
+
+      bottom:
+          0,
+
+      height:
+          _isNearbyExpanded
+              ? MediaQuery.of(
+                    context,
+                  ).size.height *
+                  0.42
+              : 82,
+
+      child:
+          AnimatedContainer(
+        duration:
+            const Duration(
+          milliseconds:
+              220,
         ),
-        borderRadius:
-            BorderRadius.vertical(
-          top:
-              Radius.circular(
-            24,
+
+        curve:
+            Curves.easeOut,
+
+        decoration:
+            const BoxDecoration(
+          color:
+              Color(
+            0xFF111111,
           ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color:
-                Colors.black54,
-            blurRadius:
-                12,
-            offset:
-                Offset(
-              0,
-              -3,
+
+          borderRadius:
+              BorderRadius.vertical(
+            top:
+                Radius.circular(
+              24,
             ),
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Material(
-            color:
-                Colors.transparent,
-            child: InkWell(
-              borderRadius:
-                  const BorderRadius
-                      .vertical(
-                top:
-                    Radius.circular(
-                  24,
-                ),
-              ),
-              onTap:
-                  _toggleNearbyPanel,
-              child: Padding(
-                padding:
-                    const EdgeInsets
-                        .fromLTRB(
-                  16,
-                  14,
-                  10,
+
+          boxShadow: [
+            BoxShadow(
+              color:
+                  Colors.black54,
+
+              blurRadius:
                   12,
+
+              offset:
+                  Offset(
+                0,
+                -3,
+              ),
+            ),
+          ],
+        ),
+
+        child:
+            Column(
+          children: [
+            Material(
+              color:
+                  Colors.transparent,
+
+              child:
+                  InkWell(
+                borderRadius:
+                    const BorderRadius
+                        .vertical(
+                  top:
+                      Radius.circular(
+                    24,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child:
-                          Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-                          Text(
-                            _showYiyoOnly
-                                ? "YIYO Right Now"
-                                : "Top Nearby Spots",
-                            style:
-                                const TextStyle(
-                              fontSize:
-                                  18,
-                              fontWeight:
-                                  FontWeight.bold,
-                            ),
-                          ),
 
-                          const SizedBox(
-                            height:
-                                3,
-                          ),
+                onTap:
+                    _toggleNearbyPanel,
 
-                          Text(
-                            _venues.isEmpty
-                                ? "No nearby spots loaded"
-                                : "${_venues.length} spots nearby",
-                            style:
-                                TextStyle(
-                              fontSize:
-                                  12,
-                              color:
-                                  Colors.grey[
-                                500
-                              ],
+                child:
+                    Padding(
+                  padding:
+                      const EdgeInsets
+                          .fromLTRB(
+                    16,
+                    14,
+                    10,
+                    12,
+                  ),
+
+                  child:
+                      Row(
+                    children: [
+                      Expanded(
+                        child:
+                            Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment
+                                  .start,
+
+                          children: [
+                            Text(
+                              _showYiyoOnly
+                                  ? "YIYO Right Now"
+                                  : "Top Nearby Spots",
+
+                              style:
+                                  const TextStyle(
+                                fontSize:
+                                    18,
+
+                                fontWeight:
+                                    FontWeight.bold,
+                              ),
                             ),
-                          ),
-                        ],
+
+                            const SizedBox(
+                              height:
+                                  3,
+                            ),
+
+                            Text(
+                              _venues.isEmpty
+                                  ? "No nearby spots loaded"
+                                  : "${_venues.length} spots nearby",
+
+                              style:
+                                  TextStyle(
+                                fontSize:
+                                    12,
+
+                                color:
+                                    Colors.grey[
+                                  500
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
 
-                    IconButton(
-                      tooltip:
+                      IconButton(
+                        tooltip:
+                            _isNearbyExpanded
+                                ? "Collapse nearby spots"
+                                : "Show nearby spots",
+
+                        onPressed:
+                            _toggleNearbyPanel,
+
+                        icon:
+                            Icon(
                           _isNearbyExpanded
-                              ? "Collapse nearby spots"
-                              : "Show nearby spots",
-                      onPressed:
-                          _toggleNearbyPanel,
-                      icon:
-                          Icon(
-                        _isNearbyExpanded
-                            ? Icons
-                                .keyboard_arrow_down
-                            : Icons
-                                .keyboard_arrow_up,
-                        size:
-                            30,
+                              ? Icons
+                                  .keyboard_arrow_down
+                              : Icons
+                                  .keyboard_arrow_up,
+
+                          size:
+                              30,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
 
-          if (_isNearbyExpanded)
-            Expanded(
-              child:
-                  _venues.isEmpty
-                      ? Center(
-                          child:
-                              Text(
-                            _isLoading
-                                ? "Finding nearby spots..."
-                                : "No nearby spots found.",
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.grey[
-                                500
-                              ],
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding:
-                              const EdgeInsets
-                                  .fromLTRB(
-                            12,
-                            0,
-                            12,
-                            18,
-                          ),
-                          itemCount:
-                              _venues.length,
-                          itemBuilder:
-                              (
-                            context,
-                            index,
-                          ) {
-                            final venue =
-                                _venues[
-                              index
-                            ];
+            if (_isNearbyExpanded)
+              Expanded(
+                child:
+                    _venues.isEmpty
+                        ? Center(
+                            child:
+                                Text(
+                              _isLoading
+                                  ? "Finding nearby spots..."
+                                  : "No nearby spots found.",
 
-                            final isSelected =
-                                _selectedVenue
-                                        ?.id ==
-                                    venue.id;
-
-                            return Padding(
-                              padding:
-                                  const EdgeInsets
-                                      .only(
-                                bottom:
-                                    6,
-                              ),
-                              child:
-                                  Material(
+                              style:
+                                  TextStyle(
                                 color:
-                                    isSelected
-                                        ? Colors
-                                            .white
-                                            .withValues(
-                                            alpha:
-                                                0.08,
-                                          )
-                                        : Colors
-                                            .transparent,
-                                borderRadius:
-                                    BorderRadius
-                                        .circular(
-                                  14,
-                                ),
-                                child:
-                                    ListTile(
-                                  shape:
-                                      RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius
-                                            .circular(
-                                      14,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    _focusVenue(
-                                      venue,
-                                    );
+                                    Colors.grey[
+                                  500
+                                ],
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding:
+                                const EdgeInsets
+                                    .fromLTRB(
+                              12,
+                              0,
+                              12,
+                              18,
+                            ),
 
-                                    setState(() {
-                                      _isNearbyExpanded =
-                                          false;
-                                    });
-                                  },
-                                  leading:
-                                      CircleAvatar(
-                                    backgroundColor:
-                                        isSelected
-                                            ? Colors.green
-                                            : Colors.grey[
-                                                800
-                                              ],
-                                    child:
-                                        Text(
-                                      "${index + 1}",
-                                      style:
-                                          const TextStyle(
-                                        color:
-                                            Colors.white,
+                            itemCount:
+                                _venues.length,
+
+                            itemBuilder:
+                                (
+                              context,
+                              index,
+                            ) {
+                              final venue =
+                                  _venues[
+                                index
+                              ];
+
+                              final isSelected =
+                                  _selectedVenue
+                                          ?.id ==
+                                      venue.id;
+
+                              return Padding(
+                                padding:
+                                    const EdgeInsets
+                                        .only(
+                                  bottom:
+                                      6,
+                                ),
+
+                                child:
+                                    Material(
+                                  color:
+                                      isSelected
+                                          ? Colors
+                                              .white
+                                              .withValues(
+                                                alpha:
+                                                    0.08,
+                                              )
+                                          : Colors
+                                              .transparent,
+
+                                  borderRadius:
+                                      BorderRadius
+                                          .circular(
+                                    14,
+                                  ),
+
+                                  child:
+                                      ListTile(
+                                    shape:
+                                        RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius
+                                              .circular(
+                                        14,
                                       ),
                                     ),
-                                  ),
-                                  title:
-                                      Text(
-                                    venue.name,
-                                    style:
-                                        const TextStyle(
-                                      fontWeight:
-                                          FontWeight
-                                              .w600,
+
+                                    onTap:
+                                        () {
+                                      _focusVenue(
+                                        venue,
+                                      );
+
+                                      setState(() {
+                                        _isNearbyExpanded =
+                                            false;
+                                      });
+                                    },
+
+                                    leading:
+                                        CircleAvatar(
+                                      backgroundColor:
+                                          isSelected
+                                              ? Colors.green
+                                              : Colors.grey[
+                                                  800
+                                                ],
+
+                                      child:
+                                          Text(
+                                        "${index + 1}",
+
+                                        style:
+                                            const TextStyle(
+                                          color:
+                                              Colors.white,
+                                        ),
+                                      ),
+                                    ),
+
+                                    title:
+                                        Text(
+                                      venue.name,
+
+                                      style:
+                                          const TextStyle(
+                                        fontWeight:
+                                            FontWeight.w600,
+                                      ),
+                                    ),
+
+                                    subtitle:
+                                        Text(
+                                      "${_badgeText(venue)} "
+                                      "• ⭐ "
+                                      "${venue.rating.toStringAsFixed(1)}",
+                                    ),
+
+                                    trailing:
+                                        const Icon(
+                                      Icons.chevron_right,
                                     ),
                                   ),
-                                  subtitle:
-                                      Text(
-                                    "${_badgeText(venue)} "
-                                    "• ⭐ "
-                                    "${venue.rating.toStringAsFixed(1)}",
-                                  ),
-                                  trailing:
-                                      const Icon(
-                                    Icons
-                                        .chevron_right,
-                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
-            ),
-        ],
+                              );
+                            },
+                          ),
+              ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
 
   Widget _buildVenueCard(
     BuildContext context,
   ) {
     if (
-      _selectedVenue == null ||
-      _isKeyboardOpen(
-        context,
-      ) ||
-      _isNearbyExpanded) {
-    return const SizedBox();
-  }
+        _selectedVenue == null ||
+        _isKeyboardOpen(
+          context,
+        ) ||
+        _isNearbyExpanded) {
+      return const SizedBox();
+    }
 
     return Positioned(
-      left: 16,
-      right: 16,
-      bottom:100,
-      child: Material(
+      left:
+          16,
+
+      right:
+          16,
+
+      bottom:
+          100,
+
+      child:
+          Material(
         color:
             Colors.transparent,
+
         child:
             AnimatedContainer(
           duration:
@@ -1450,29 +1594,35 @@ class _MapScreenState extends State<MapScreen>
             milliseconds:
                 250,
           ),
-          child: Card(
+
+          child:
+              Card(
             elevation:
                 14,
+
             shape:
                 RoundedRectangleBorder(
               borderRadius:
-                  BorderRadius
-                      .circular(
+                  BorderRadius.circular(
                 18,
               ),
             ),
-            child: Padding(
+
+            child:
+                Padding(
               padding:
                   const EdgeInsets.all(
                 16,
               ),
-              child: Column(
+
+              child:
+                  Column(
                 mainAxisSize:
-                    MainAxisSize
-                        .min,
+                    MainAxisSize.min,
+
                 crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
+                    CrossAxisAlignment.start,
+
                 children: [
                   Row(
                     children: [
@@ -1481,13 +1631,14 @@ class _MapScreenState extends State<MapScreen>
                             Text(
                           _selectedVenue!
                               .name,
+
                           style:
                               const TextStyle(
                             fontSize:
                                 18,
+
                             fontWeight:
-                                FontWeight
-                                    .bold,
+                                FontWeight.bold,
                           ),
                         ),
                       ),
@@ -1498,48 +1649,56 @@ class _MapScreenState extends State<MapScreen>
                                 .symmetric(
                           horizontal:
                               10,
+
                           vertical:
                               6,
                         ),
+
                         decoration:
                             BoxDecoration(
                           color:
                               _badgeColor(
                             _selectedVenue!,
                           ),
+
                           borderRadius:
                               BorderRadius
                                   .circular(
                             10,
                           ),
                         ),
+
                         child:
                             Text(
                           _badgeText(
                             _selectedVenue!,
                           ),
+
                           style:
                               const TextStyle(
                             color:
                                 Colors.white,
+
                             fontWeight:
-                                FontWeight
-                                    .bold,
+                                FontWeight.bold,
                           ),
                         ),
                       ),
 
                       const SizedBox(
-                        width: 6,
+                        width:
+                            6,
                       ),
 
                       IconButton(
-                        onPressed: () {
+                        onPressed:
+                            () {
                           setState(() {
                             _selectedVenue =
                                 null;
                           });
                         },
+
                         icon:
                             const Icon(
                           Icons.close,
@@ -1549,32 +1708,39 @@ class _MapScreenState extends State<MapScreen>
                   ),
 
                   const SizedBox(
-                    height: 6,
+                    height:
+                        6,
                   ),
 
                   Text(
                     "⭐ ${_selectedVenue!.rating.toStringAsFixed(1)}",
+
                     style:
                         const TextStyle(
-                      fontSize: 15,
+                      fontSize:
+                          15,
                     ),
                   ),
 
                   const SizedBox(
-                    height: 4,
+                    height:
+                        4,
                   ),
 
                   Text(
                     _selectedVenue!
                         .address,
+
                     style:
                         const TextStyle(
-                      fontSize: 14,
+                      fontSize:
+                          14,
                     ),
                   ),
 
                   const SizedBox(
-                    height: 12,
+                    height:
+                        12,
                   ),
 
                   Row(
@@ -1584,6 +1750,7 @@ class _MapScreenState extends State<MapScreen>
                             ElevatedButton(
                           onPressed:
                               _openVenueDetails,
+
                           child:
                               const Text(
                             "View Venue",
@@ -1592,22 +1759,26 @@ class _MapScreenState extends State<MapScreen>
                       ),
 
                       const SizedBox(
-                        width: 8,
+                        width:
+                            8,
                       ),
 
                       Expanded(
                         child:
                             ElevatedButton
                                 .icon(
-                          onPressed: () =>
-                              _openReportSheet(
+                          onPressed:
+                              () =>
+                                  _openReportSheet(
                             _selectedVenue!,
                           ),
+
                           icon:
                               const Icon(
                             Icons
                                 .campaign_outlined,
                           ),
+
                           label:
                               const Text(
                             "Report",
@@ -1632,10 +1803,17 @@ class _MapScreenState extends State<MapScreen>
     }
 
     return const Positioned(
-      top: 170,
-      left: 0,
-      right: 0,
-      child: Center(
+      top:
+          170,
+
+      left:
+          0,
+
+      right:
+          0,
+
+      child:
+          Center(
         child:
             CircularProgressIndicator(),
       ),
@@ -1655,48 +1833,61 @@ class _MapScreenState extends State<MapScreen>
     return GestureDetector(
       onTap:
           _dismissKeyboard,
-      child: Scaffold(
+
+      child:
+          Scaffold(
         resizeToAvoidBottomInset:
             true,
-        appBar: AppBar(
+
+        appBar:
+            AppBar(
           title:
               const Text(
             "YIYO",
           ),
+
           actions: [
             IconButton(
               tooltip:
                   "Profile",
+
               icon:
                   const Icon(
-                Icons
-                    .person_outline,
+                Icons.person_outline,
               ),
-              onPressed: () {
+
+              onPressed:
+                  () {
                 Navigator.of(
                   context,
                 ).push(
                   MaterialPageRoute(
-                    builder: (_) =>
-                        const ProfileScreen(),
+                    builder:
+                        (_) =>
+                            const ProfileScreen(),
                   ),
                 );
               },
             ),
           ],
         ),
-        body: Stack(
+
+        body:
+            Stack(
           children: [
             GoogleMap(
               onMapCreated:
                   _onMapCreated,
+
               initialCameraPosition:
                   CameraPosition(
                 target:
                     _currentLocation,
+
                 zoom:
                     12,
               ),
+
               markers:
                   _markers,
 
@@ -1710,8 +1901,9 @@ class _MapScreenState extends State<MapScreen>
               myLocationButtonEnabled:
                   _locationReady,
 
-              onTap: (_) =>
-                  _dismissKeyboard(),
+              onTap:
+                  (_) =>
+                      _dismissKeyboard(),
             ),
 
             _buildSearchBar(),
@@ -1720,13 +1912,10 @@ class _MapScreenState extends State<MapScreen>
 
             _buildErrorBanner(),
 
-            // No external
-            // DraggableScrollableController.
-            //
-            // Flutter owns the sheet controller
-            // internally, avoiding the
-            // "controller already attached"
-            // assertion.
+            // Flutter owns the nearby panel
+            // state internally. No external
+            // DraggableScrollableController is
+            // attached here.
             if (!keyboardOpen)
               _buildTopSpotsPanel(),
 
