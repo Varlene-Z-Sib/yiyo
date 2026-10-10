@@ -15,10 +15,18 @@ class AuthService {
 
   static bool _googleInitialized = false;
 
+  static String? _pendingSignupUsername;
+
+
+  static String? get pendingSignupUsername =>
+      _pendingSignupUsername;
+
+  static void clearPendingSignupUsername() {
+    _pendingSignupUsername = null;
+  }
 
   static User? get currentUser =>
       _auth.currentUser;
-
 
   static bool get usesPasswordProvider {
     return currentUser
@@ -31,7 +39,6 @@ class AuthService {
         false;
   }
 
-
   static bool get usesGoogleProvider {
     return currentUser
             ?.providerData
@@ -43,11 +50,9 @@ class AuthService {
         false;
   }
 
-
   static Stream<User?> authStateChanges() {
     return _auth.authStateChanges();
   }
-
 
   static Future<void>
       _initializeGoogleSignIn() async {
@@ -59,16 +64,14 @@ class AuthService {
 
     _googleInitialized = true;
   }
-
-
   // ---------------------------------------------------------------------------
   // Email / password signup
   // ---------------------------------------------------------------------------
 
   static Future<void> signUp({
-    required String email,
-    required String password,
-    required String username,
+  required String email,
+  required String password,
+  required String username,
   }) async {
     final cleanEmail =
         email.trim();
@@ -76,49 +79,62 @@ class AuthService {
     final cleanUsername =
         username.trim();
 
-    final credential =
-        await _auth
-            .createUserWithEmailAndPassword(
-      email: cleanEmail,
-      password: password,
-    );
+    // Firebase signs the user in as soon as
+    // createUserWithEmailAndPassword succeeds.
+    //
+    // AuthGate can therefore open ProfileGate
+    // before Firestore/displayName setup finishes.
+    // Keep this value available during that gap.
+    _pendingSignupUsername =
+        cleanUsername;
 
-    final user =
-        credential.user;
+    try {
+      final credential =
+          await _auth
+              .createUserWithEmailAndPassword(
+        email:
+            cleanEmail,
 
-    if (user == null) {
-      throw FirebaseAuthException(
-        code:
-            "user-creation-failed",
-
-        message:
-            "Your account could not be created.",
+        password:
+            password,
       );
-    }
 
-    // For email signup, the username entered on
-    // the signup screen becomes the initial YIYO
-    // username immediately.
-      await user.updateDisplayName(
-          cleanUsername,
+      final user =
+          credential.user;
+
+      if (user == null) {
+        throw FirebaseAuthException(
+          code:
+              "user-creation-failed",
+
+          message:
+              "Your account could not be created.",
         );
+      }
 
-        await _createUserDocumentIfNeeded(
-      user: user,
+      await user.updateDisplayName(
+        cleanUsername,
+      );
 
-      // Preserve what they typed so we
-      // can prefill Make YIYO yours.
-      displayName:
-          cleanUsername,
+      await _createUserDocumentIfNeeded(
+        user:
+            user,
 
-      // Do not finalize the YIYO username
-      // until onboarding is completed.
-      username:
-          "",
-    );
+        displayName:
+            cleanUsername,
+
+        // Username is only finalized on
+        // Make YIYO yours.
+        username:
+            "",
+      );
+    } catch (_) {
+      _pendingSignupUsername =
+          null;
+
+      rethrow;
+    }
   }
-
-
   // ---------------------------------------------------------------------------
   // Email / password login
   // ---------------------------------------------------------------------------
@@ -127,6 +143,7 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    _pendingSignupUsername = null;
     await _auth
         .signInWithEmailAndPassword(
       email:
@@ -136,14 +153,13 @@ class AuthService {
           password,
     );
   }
-
-
   // ---------------------------------------------------------------------------
   // Google sign-in
   // ---------------------------------------------------------------------------
 
   static Future<void>
       signInWithGoogle() async {
+        _pendingSignupUsername = null;
     await _initializeGoogleSignIn();
 
     final googleUser =
@@ -432,6 +448,7 @@ class AuthService {
   // ---------------------------------------------------------------------------
 
   static Future<void> signOut() async {
+    _pendingSignupUsername = null;
     await _auth.signOut();
   }
 
@@ -442,6 +459,7 @@ class AuthService {
 
   static Future<void>
       finishDeletedAccountSession() async {
+        _pendingSignupUsername = null;
     try {
       await _auth.signOut();
     } finally {
