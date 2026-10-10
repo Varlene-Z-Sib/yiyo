@@ -187,24 +187,6 @@ def event_visibility_end(
             hours=8
         )
     )
-def can_cancel_event_with_context(
-    *,
-    actor_uid: str,
-    organizer_uid: str,
-    is_super_admin: bool,
-    manages_venue: bool,
-) -> bool:
-    if is_super_admin:
-        return True
-
-    if actor_uid == organizer_uid:
-        return True
-
-    if manages_venue:
-        return True
-
-    return False
-
 
 def is_event_status_cancellable(
     status: str,

@@ -851,25 +851,20 @@ Future<void> _restoreDraft() async {
 
     _draftSaveDebounce?.cancel();
 
-      await _saveDraft();
+    await _saveDraft();
 
-      if (!mounted) {
-        return;
-      }
+    if (!mounted) {
+      return;
+    }
 
-      FocusScope.of(
-        context,
-      ).unfocus();
+    FocusScope.of(
+      context,
+    ).unfocus();
 
-      setState(() {
-        _submitting =
-            true;
-      });
-
-      setState(() {
-        _submitting =
-            true;
-      });
+    setState(() {
+      _submitting =
+          true;
+    });
 
     try {
       final event =
