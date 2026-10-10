@@ -324,7 +324,11 @@ void initState() {
               ?.displayName
               ?.trim() ??
           "";
-
+  final pendingSignupUsername =
+      AuthService
+              .pendingSignupUsername
+              ?.trim() ??
+          "";
   // Prefer the real saved username.
   //
   // For a brand-new email/password account,
@@ -332,17 +336,20 @@ void initState() {
   // which was stored in Firebase Auth's
   // displayName.
   final usernamePrefill =
-      savedUsername.isNotEmpty
-          ? savedUsername
-          : AuthService
-                  .usesPasswordProvider
-              ? (
-                  firebaseDisplayName
-                          .isNotEmpty
-                      ? firebaseDisplayName
-                      : profileDisplayName
-                )
-              : "";
+    savedUsername.isNotEmpty
+        ? savedUsername
+        : pendingSignupUsername
+                .isNotEmpty
+            ? pendingSignupUsername
+            : AuthService
+                    .usesPasswordProvider
+                ? (
+                    firebaseDisplayName
+                            .isNotEmpty
+                        ? firebaseDisplayName
+                        : profileDisplayName
+                  )
+                : "";
 
   // For Google accounts, Firebase's
   // displayName is the person's Google name,
@@ -461,22 +468,25 @@ void initState() {
 
     try {
       final updated =
-          await ApiService
-              .updateMyProfile(
-        username:
-            username,
+    await ApiService
+        .updateMyProfile(
+          username:
+              username,
 
-        fullName:
-            fullName,
-      );
+          fullName:
+              fullName,
+        );
 
-      if (!mounted) {
-        return;
-      }
+        AuthService
+            .clearPendingSignupUsername();
 
-      widget.onCompleted(
-        updated,
-      );
+        if (!mounted) {
+          return;
+        }
+
+        widget.onCompleted(
+          updated,
+        );
     } on ApiException catch (
         error) {
       if (!mounted) {
