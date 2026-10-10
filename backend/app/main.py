@@ -402,12 +402,11 @@ def get_or_build_area_venues(
         venues,
     )
 
-    for venue in venues:
-        venues = (
-            attach_materialized_community_states(
-                venues
-            )
+    venues = (
+        attach_materialized_community_states(
+            venues
         )
+    )
 
     return (
         "google_places",
@@ -1655,11 +1654,6 @@ def admin_grant_membership(
         )
     )
 
-
-@app.post(
-    "/admin/memberships/"
-    "{membership_id}/suspend"
-)
 @app.post(
     "/admin/memberships/"
     "{membership_id}/suspend"
