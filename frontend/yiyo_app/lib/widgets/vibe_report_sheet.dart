@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../models/venue.dart';
 import '../models/vibe_report_request.dart';
 import '../services/api_service.dart';
+import '../services/draft_storage_service.dart';
 
 
 Future<bool?> showVibeReportSheet({
@@ -31,7 +35,6 @@ Future<bool?> showVibeReportSheet({
   );
 }
 
-
 class _VibeReportSheetContent
     extends StatefulWidget {
   final Venue venue;
@@ -46,10 +49,10 @@ class _VibeReportSheetContent
           _VibeReportSheetContentState();
 }
 
-
 class _VibeReportSheetContentState
     extends State<
-        _VibeReportSheetContent> {
+        _VibeReportSheetContent>
+    with WidgetsBindingObserver {
   String? _yiyoStatus;
   String? _crowdLevel;
 
@@ -73,22 +76,337 @@ class _VibeReportSheetContentState
       _commentController =
       TextEditingController();
 
+  bool _restoringDraft = true;
+
+  String? _lastSavedDraftFingerprint;
+
+
   bool get _canSubmit {
     return _yiyoStatus != null &&
         _crowdLevel != null &&
         !_isSubmitting;
   }
 
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addObserver(
+      this,
+    );
+
+    _restoreDraft();
+  }
+
+
+  @override
+  void didChangeAppLifecycleState(
+    AppLifecycleState state,
+  ) {
+    if (
+        state ==
+            AppLifecycleState.inactive ||
+        state ==
+            AppLifecycleState.paused ||
+        state ==
+            AppLifecycleState.detached) {
+      unawaited(
+        _saveDraft(),
+      );
+    }
+  }
+
+
   @override
   void dispose() {
+    // Save when the user closes/swipes
+    // away from the sheet.
+    //
+    // _saveDraft() takes its snapshot
+    // before its first async operation,
+    // while the controllers are still alive.
+    unawaited(
+      _saveDraft(),
+    );
+
+    WidgetsBinding.instance.removeObserver(
+      this,
+    );
+
     _parkingNoteController.dispose();
     _commentController.dispose();
 
     super.dispose();
   }
 
+
+  bool _hasDraftContent() {
+    return _yiyoStatus != null ||
+        _crowdLevel != null ||
+        _safetyLevel != null ||
+        _musicType != null ||
+        _queueLength != null ||
+        _parkingAvailability != null ||
+        _parkingSafety != null ||
+        _parkingNoteController.text
+            .trim()
+            .isNotEmpty ||
+        _commentController.text
+            .trim()
+            .isNotEmpty;
+  }
+
+
+  Map<String, dynamic> _draftData() {
+    return {
+      "yiyo_status":
+          _yiyoStatus,
+
+      "crowd_level":
+          _crowdLevel,
+
+      "safety_level":
+          _safetyLevel,
+
+      "music_type":
+          _musicType,
+
+      "queue_length":
+          _queueLength,
+
+      "parking_availability":
+          _parkingAvailability,
+
+      "parking_safety":
+          _parkingSafety,
+
+      "parking_note":
+          _parkingNoteController.text,
+
+      "comment":
+          _commentController.text,
+
+      "show_details":
+          _showDetails,
+    };
+  }
+
+
+  String _draftFingerprint() {
+    return jsonEncode(
+      _draftData(),
+    );
+  }
+
+
+  Future<void> _saveDraft() async {
+    if (
+        _restoringDraft ||
+        _isSubmitting) {
+      return;
+    }
+
+    if (!_hasDraftContent()) {
+      if (
+          _lastSavedDraftFingerprint !=
+              null) {
+        await DraftStorageService
+            .clearVibeReportDraft(
+          venueId:
+              widget.venue.id,
+        );
+
+        _lastSavedDraftFingerprint =
+            null;
+      }
+
+      return;
+    }
+
+    final fingerprint =
+        _draftFingerprint();
+
+    // Don't rewrite an unchanged restored
+    // draft just because the user opened
+    // and closed the sheet. This preserves
+    // its original 30-minute expiry.
+    if (
+        fingerprint ==
+            _lastSavedDraftFingerprint) {
+      return;
+    }
+
+    await DraftStorageService
+        .saveVibeReportDraft(
+      venueId:
+          widget.venue.id,
+
+      draft:
+          _draftData(),
+    );
+
+    _lastSavedDraftFingerprint =
+        fingerprint;
+  }
+
+
+  String? _draftString(
+    Map<String, dynamic> draft,
+    String key,
+  ) {
+    final value =
+        draft[key];
+
+    if (value == null) {
+      return null;
+    }
+
+    final text =
+        value.toString().trim();
+
+    return text.isEmpty
+        ? null
+        : text;
+  }
+
+
+  Future<void> _restoreDraft() async {
+    try {
+      final draft =
+          await DraftStorageService
+              .loadVibeReportDraft(
+        venueId:
+            widget.venue.id,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (draft == null) {
+        _restoringDraft =
+            false;
+
+        return;
+      }
+
+      final musicType =
+          _draftString(
+        draft,
+        "music_type",
+      );
+
+      final queueLength =
+          _draftString(
+        draft,
+        "queue_length",
+      );
+
+      final parkingAvailability =
+          _draftString(
+        draft,
+        "parking_availability",
+      );
+
+      final parkingSafety =
+          _draftString(
+        draft,
+        "parking_safety",
+      );
+
+      final parkingNote =
+          _draftString(
+        draft,
+        "parking_note",
+      );
+
+      final comment =
+          _draftString(
+        draft,
+        "comment",
+      );
+
+      _parkingNoteController.text =
+          parkingNote ?? "";
+
+      _commentController.text =
+          comment ?? "";
+
+      setState(() {
+        _yiyoStatus =
+            _draftString(
+          draft,
+          "yiyo_status",
+        );
+
+        _crowdLevel =
+            _draftString(
+          draft,
+          "crowd_level",
+        );
+
+        _safetyLevel =
+            _draftString(
+          draft,
+          "safety_level",
+        );
+
+        _musicType =
+            musicType;
+
+        _queueLength =
+            queueLength;
+
+        _parkingAvailability =
+            parkingAvailability;
+
+        _parkingSafety =
+            parkingSafety;
+
+        final hasDetailContent =
+            musicType != null ||
+            queueLength != null ||
+            parkingAvailability != null ||
+            parkingSafety != null ||
+            parkingNote != null ||
+            comment != null;
+
+        _showDetails =
+            draft[
+                  "show_details"
+                ] ==
+                true ||
+            hasDetailContent;
+      });
+
+      _restoringDraft =
+          false;
+
+      _lastSavedDraftFingerprint =
+          _draftFingerprint();
+    } catch (_) {
+      // Draft restoration is best-effort.
+      // A local storage issue should never
+      // prevent the vibe sheet from opening.
+      _restoringDraft =
+          false;
+    }
+  }
+
+
   Future<void> _submit() async {
     if (!_canSubmit) {
+      return;
+    }
+
+    // Persist the latest answers before
+    // starting the network request.
+    //
+    // If submission fails, the draft stays.
+    await _saveDraft();
+
+    if (!mounted) {
       return;
     }
 
@@ -99,11 +417,17 @@ class _VibeReportSheetContentState
 
     final request =
         VibeReportRequest(
-      venueId: widget.venue.id,
-      venueName: widget.venue.name,
+      venueId:
+          widget.venue.id,
 
-      crowdLevel: _crowdLevel!,
-      yiyoStatus: _yiyoStatus!,
+      venueName:
+          widget.venue.name,
+
+      crowdLevel:
+          _crowdLevel!,
+
+      yiyoStatus:
+          _yiyoStatus!,
 
       safetyLevel:
           _safetyLevel,
@@ -142,19 +466,35 @@ class _VibeReportSheetContentState
         request,
       );
 
+      // Only a confirmed successful
+      // submission destroys the draft.
+      await DraftStorageService
+          .clearVibeReportDraft(
+        venueId:
+            widget.venue.id,
+      );
+
+      _lastSavedDraftFingerprint =
+          null;
+
       if (!mounted) {
         return;
       }
 
-      Navigator.of(context)
-          .pop(true);
+      Navigator.of(
+        context,
+      ).pop(
+        true,
+      );
     } on ApiException catch (e) {
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _isSubmitting = false;
+        _isSubmitting =
+            false;
+
         _errorMessage =
             e.message;
       });
@@ -164,7 +504,8 @@ class _VibeReportSheetContentState
       }
 
       setState(() {
-        _isSubmitting = false;
+        _isSubmitting =
+            false;
 
         _errorMessage =
             "Couldn't update the vibe. "
