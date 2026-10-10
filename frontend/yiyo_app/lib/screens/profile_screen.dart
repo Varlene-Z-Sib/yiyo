@@ -696,11 +696,26 @@ Future<void> _deleteAccount() async {
     await AuthService
         .finishDeletedAccountSession();
 
-    // Do not navigate manually here.
+    if (!mounted) {
+      return;
+    }
+
+    // Profile is a pushed route sitting above
+    // the root AuthGate.
     //
-    // AuthGate listens to Firebase auth state
-    // changes and will automatically return
-    // the app to the authentication screen.
+    // Firebase sign-out makes AuthGate switch
+    // to AuthScreen. Removing the pushed routes
+    // reveals that existing auth screen
+    // immediately instead of waiting for
+    // another user interaction.
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).popUntil(
+      (route) =>
+          route.isFirst,
+    );
+
     return;
   } catch (error) {
     if (!mounted) {
