@@ -846,12 +846,21 @@ Future<void> _deleteAccount() async {
       ),
 
       body:
-          RefreshIndicator(
-        onRefresh:
-            _loadProfile,
+          SafeArea(
+        // AppBar already protects the top.
+        // Keep profile content above the
+        // Android navigation area.
+        top:
+            false,
 
         child:
-            _buildBody(),
+            RefreshIndicator(
+          onRefresh:
+              _loadProfile,
+
+          child:
+              _buildBody(),
+        ),
       ),
     );
   }
