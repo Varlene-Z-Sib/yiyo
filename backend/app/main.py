@@ -29,6 +29,8 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from app.services.user_service import (
     get_user_contributions,
     get_user_profile,
+    record_current_legal_acceptance,
+    require_current_legal_acceptance,
     update_user_identity,
 )
 from app.services.vibe_summary_service import (
@@ -979,6 +981,10 @@ def create_vibe_report(
                 detail="Invalid user",
             )
 
+        require_current_legal_acceptance(
+            uid
+        )
+
         canonical_venue = (
             get_canonical_venue_or_404(
                 report.venue_id
@@ -1292,6 +1298,63 @@ def get_my_profile(
             status_code=401,
             detail="Invalid user",
         )
+
+    profile = get_user_profile(
+        uid=uid,
+
+        token_email=str(
+            current_user.get(
+                "email",
+                "",
+            )
+            or ""
+        ),
+
+        token_display_name=str(
+            current_user.get(
+                "name",
+                "",
+            )
+            or ""
+        ),
+
+        token_provider=str(
+            (
+                current_user.get(
+                    "firebase",
+                    {},
+                )
+                or {}
+            ).get(
+                "sign_in_provider",
+                "",
+            )
+            or ""
+        ),
+    )
+
+    return profile.model_dump()
+
+
+@app.post("/me/legal-acceptance")
+def accept_current_legal_policies(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = current_user.get(
+        "uid"
+    )
+
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid user",
+        )
+
+    record_current_legal_acceptance(
+        uid
+    )
 
     profile = get_user_profile(
         uid=uid,
@@ -1762,6 +1825,18 @@ def create_yiyo_event(
         get_current_user
     ),
 ):
+    uid = str(
+        current_user.get(
+            "uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    require_current_legal_acceptance(
+        uid
+    )
+
     canonical_venue = (
         get_canonical_venue_or_404(
             request.venue_id
@@ -1917,6 +1992,18 @@ def edit_event(
         get_current_user
     ),
 ):
+    uid = str(
+        current_user.get(
+            "uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    require_current_legal_acceptance(
+        uid
+    )
+
     event = update_event(
         event_id=
             event_id,

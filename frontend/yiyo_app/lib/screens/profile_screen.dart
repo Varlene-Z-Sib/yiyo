@@ -5,6 +5,7 @@ import '../models/user_profile.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'legal_document_screen.dart';
 import '../models/profile_access_summary.dart';
 
 
@@ -235,6 +236,32 @@ void dispose() {
             Text(
           "Profile updated",
         ),
+      ),
+    );
+  }
+
+
+  Future<void> _openPrivacyPolicy() async {
+    await Navigator.of(
+      context,
+    ).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const LegalDocumentScreen
+                .privacy(),
+      ),
+    );
+  }
+
+
+  Future<void> _openTerms() async {
+    await Navigator.of(
+      context,
+    ).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const LegalDocumentScreen
+                .terms(),
       ),
     );
   }
@@ -2331,6 +2358,142 @@ Widget _buildAccessBadge({
               overflow:
                   TextOverflow
                       .ellipsis,
+            ),
+          ),
+
+          Divider(
+            height:
+                1,
+
+            color:
+                Colors.white
+                    .withValues(
+              alpha:
+                  0.06,
+            ),
+          ),
+
+          ListTile(
+            onTap:
+                _openPrivacyPolicy,
+
+            leading:
+                Container(
+              width:
+                  42,
+              height:
+                  42,
+
+              decoration:
+                  BoxDecoration(
+                color:
+                    Colors.white
+                        .withValues(
+                  alpha:
+                      0.06,
+                ),
+
+                borderRadius:
+                    BorderRadius.circular(
+                  12,
+                ),
+              ),
+
+              child:
+                  const Icon(
+                Icons
+                    .privacy_tip_outlined,
+                size:
+                    20,
+              ),
+            ),
+
+            title:
+                const Text(
+              "Privacy Policy",
+              style:
+                  TextStyle(
+                fontWeight:
+                    FontWeight.w700,
+              ),
+            ),
+
+            subtitle:
+                const Text(
+              "How YIYO handles account, location and community data.",
+            ),
+
+            trailing:
+                const Icon(
+              Icons.chevron_right,
+            ),
+          ),
+
+          Divider(
+            height:
+                1,
+
+            color:
+                Colors.white
+                    .withValues(
+              alpha:
+                  0.06,
+            ),
+          ),
+
+          ListTile(
+            onTap:
+                _openTerms,
+
+            leading:
+                Container(
+              width:
+                  42,
+              height:
+                  42,
+
+              decoration:
+                  BoxDecoration(
+                color:
+                    Colors.white
+                        .withValues(
+                  alpha:
+                      0.06,
+                ),
+
+                borderRadius:
+                    BorderRadius.circular(
+                  12,
+                ),
+              ),
+
+              child:
+                  const Icon(
+                Icons
+                    .gavel_outlined,
+                size:
+                    20,
+              ),
+            ),
+
+            title:
+                const Text(
+              "Terms & Community Guidelines",
+              style:
+                  TextStyle(
+                fontWeight:
+                    FontWeight.w700,
+              ),
+            ),
+
+            subtitle:
+                const Text(
+              "Rules for contributions, events and responsible use.",
+            ),
+
+            trailing:
+                const Icon(
+              Icons.chevron_right,
             ),
           ),
 

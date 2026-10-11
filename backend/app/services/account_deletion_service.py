@@ -207,6 +207,48 @@ def _delete_memberships(
     )
 
 
+def _report_owner_cleanup_update(
+    now: datetime,
+) -> dict:
+    return {
+        "uid":
+            "",
+
+        "author_deleted":
+            True,
+
+        "author_deleted_at":
+            now.isoformat(),
+
+        "author_deleted_at_unix":
+            int(
+                now.timestamp()
+            ),
+
+        # Current report fields.
+        "user_email":
+            firestore.DELETE_FIELD,
+
+        "user_display_name":
+            firestore.DELETE_FIELD,
+
+        # Defensive cleanup in case older /
+        # future report formats used these
+        # identity names.
+        "email":
+            firestore.DELETE_FIELD,
+
+        "username":
+            firestore.DELETE_FIELD,
+
+        "display_name":
+            firestore.DELETE_FIELD,
+
+        "full_name":
+            firestore.DELETE_FIELD,
+    }
+
+
 def _anonymize_reports(
     uid: str,
     now: datetime,
@@ -233,36 +275,9 @@ def _anonymize_reports(
     for doc in docs:
         batch.update(
             doc.reference,
-            {
-                "uid":
-                    "",
-
-                "author_deleted":
-                    True,
-
-                "author_deleted_at":
-                    now.isoformat(),
-
-                "author_deleted_at_unix":
-                    int(
-                        now.timestamp()
-                    ),
-
-                # Defensive cleanup in case
-                # older report formats ever
-                # stored profile information.
-                "email":
-                    firestore.DELETE_FIELD,
-
-                "username":
-                    firestore.DELETE_FIELD,
-
-                "display_name":
-                    firestore.DELETE_FIELD,
-
-                "full_name":
-                    firestore.DELETE_FIELD,
-            },
+            _report_owner_cleanup_update(
+                now
+            ),
         )
 
         pending += 1

@@ -41,6 +41,34 @@ void main() {
   );
 
   test(
+    'UserProfile parses legal acceptance state',
+    () {
+      final profile =
+          UserProfile.fromJson({
+        'uid': 'user_123',
+        'terms_version':
+            '1.0',
+        'privacy_version':
+            '1.0',
+        'legal_accepted_at':
+            '2026-10-11T10:00:00+00:00',
+        'legal_acceptance_current':
+            true,
+      });
+
+      expect(
+        profile.legalAcceptanceCurrent,
+        isTrue,
+      );
+
+      expect(
+        profile.termsVersion,
+        '1.0',
+      );
+    },
+  );
+
+  test(
     'UserProfile falls back to email for display label',
     () {
       final profile =

@@ -518,6 +518,43 @@ static Future<void>
   // -------------------------------------------------------------------------
 
   static Future<UserProfile>
+      acceptLegalPolicies() async {
+    final uri = Uri.parse(
+      "$baseUrl/me/legal-acceptance",
+    );
+
+    final response =
+        await http.post(
+      uri,
+      headers:
+          await _authHeaders(),
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        statusCode:
+            response.statusCode,
+        message:
+            _errorMessage(
+          response,
+          fallback:
+              "Couldn't save legal acceptance",
+        ),
+      );
+    }
+
+    final data =
+        jsonDecode(
+      response.body,
+    ) as Map<String, dynamic>;
+
+    return UserProfile.fromJson(
+      data,
+    );
+  }
+
+
+  static Future<UserProfile>
       getMyProfile() async {
     final uri =
         Uri.parse(

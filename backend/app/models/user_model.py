@@ -28,6 +28,11 @@ class UserProfileResponse(BaseModel):
 
     created_at: str | None = None
 
+    terms_version: str = ""
+    privacy_version: str = ""
+    legal_accepted_at: str | None = None
+    legal_acceptance_current: bool = False
+
 
 class UserProfileUpdate(BaseModel):
     model_config = ConfigDict(

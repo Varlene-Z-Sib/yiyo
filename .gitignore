@@ -20,3 +20,6 @@ google-services.json
 
 # Misc
 .DS_Store
+
+# Firebase local deployment/cache data
+.firebase/
