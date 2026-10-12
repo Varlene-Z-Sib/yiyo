@@ -167,6 +167,136 @@ class _VenueDetailsScreenState
     );
   }
 
+Future<void>
+    _blockReportContributor(
+  VibeReport report,
+) async {
+  if (report.id
+      .trim()
+      .isEmpty) {
+    return;
+  }
+
+  final confirmed =
+      await showDialog<bool>(
+        context: context,
+        builder:
+            (dialogContext) =>
+                AlertDialog(
+          title:
+              const Text(
+            "Block contributor?",
+          ),
+          content:
+              const Text(
+            "You won't see community "
+            "updates from this contributor. "
+            "Their identity will remain "
+            "private.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(
+                dialogContext,
+              ).pop(
+                false,
+              ),
+              child:
+                  const Text(
+                "Cancel",
+              ),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(
+                dialogContext,
+              ).pop(
+                true,
+              ),
+              child:
+                  const Text(
+                "Block",
+              ),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+
+  if (!confirmed ||
+      !mounted) {
+    return;
+  }
+
+  try {
+    await ApiService
+        .blockReportContributor(
+      reportId:
+          report.id,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoading =
+          true;
+      _error =
+          null;
+    });
+
+    await _loadReports();
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      const SnackBar(
+        content:
+            Text(
+          "Contributor blocked. "
+          "Their updates are now hidden.",
+        ),
+      ),
+    );
+  } on ApiException catch (e) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      SnackBar(
+        content:
+            Text(
+          e.message,
+        ),
+      ),
+    );
+  } catch (_) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      const SnackBar(
+        content:
+            Text(
+          "Couldn't block this contributor.",
+        ),
+      ),
+    );
+  }
+}
+
   Color _badgeColor(
     String badge,
   ) {
@@ -1088,218 +1218,243 @@ class _VenueDetailsScreenState
   }
 
   Widget _buildReportCard(
-    VibeReport report,
-  ) {
-    final current =
-        report.isCurrent();
+  VibeReport report,
+) {
+  final current =
+      report.isCurrent();
 
-    final headlineParts = <String>[
-      _displayValue(
-        report.yiyoStatus,
-      ),
-      _displayValue(
-        report.crowdLevel,
-      ),
-    ];
+  final headlineParts = <String>[
+    _displayValue(
+      report.yiyoStatus,
+    ),
+    _displayValue(
+      report.crowdLevel,
+    ),
+  ];
 
-    if (report.safetyLevel
-        .trim()
-        .isNotEmpty) {
-      headlineParts.add(
-        report.safetyLevel.trim(),
-      );
-    }
-
-    final parkingParts = <String>[];
-
-    if (report.parkingAvailability
-        .trim()
-        .isNotEmpty) {
-      parkingParts.add(
-        report
-            .parkingAvailability
-            .trim(),
-      );
-    }
-
-    if (report.parkingSafety
-        .trim()
-        .isNotEmpty) {
-      parkingParts.add(
-        report
-            .parkingSafety
-            .trim(),
-      );
-    }
-
-    return Card(
-      margin:
-          const EdgeInsets.only(
-        bottom: 10,
-      ),
-      child: Padding(
-        padding:
-            const EdgeInsets.all(
-          14,
-        ),
-        child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    headlineParts.join(
-                      " • ",
-                    ),
-                    style:
-                        const TextStyle(
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-                ),
-
-                if (!current)
-                  Container(
-                    margin:
-                        const EdgeInsets.only(
-                      left: 8,
-                    ),
-                    padding:
-                        const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          Colors.grey[300],
-                      borderRadius:
-                          BorderRadius.circular(
-                        8,
-                      ),
-                    ),
-                    child:
-                        const Text(
-                      "Older",
-                      style:
-                          TextStyle(
-                        fontSize: 11,
-                        color:
-                            Colors.black87,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-
-            if (report.musicType
-                .trim()
-                .isNotEmpty) ...[
-              const SizedBox(
-                height: 6,
-              ),
-
-              Text(
-                "Music: "
-                "${report.musicType.trim()}",
-              ),
-            ],
-
-            if (report.queueLength
-                .trim()
-                .isNotEmpty) ...[
-              const SizedBox(
-                height: 4,
-              ),
-
-              Text(
-                "Queue: "
-                "${report.queueLength.trim()}",
-              ),
-            ],
-
-            if (parkingParts
-                .isNotEmpty) ...[
-              const SizedBox(
-                height: 4,
-              ),
-
-              Text(
-                "Parking: "
-                "${parkingParts.join(" • ")}",
-              ),
-            ],
-
-            if (report.parkingNote
-                .trim()
-                .isNotEmpty) ...[
-              const SizedBox(
-                height: 6,
-              ),
-
-              Text(
-                report.parkingNote
-                    .trim(),
-              ),
-            ],
-
-            if (report.comment
-                .trim()
-                .isNotEmpty) ...[
-              const SizedBox(
-                height: 6,
-              ),
-
-              Text(
-                report.comment.trim(),
-              ),
-            ],
-
-            const SizedBox(
-              height: 8,
-            ),
-
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    report
-                        .freshnessLabel(),
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.grey[600],
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-
-                if (report.id
-                    .trim()
-                    .isNotEmpty)
-                  TextButton.icon(
-                    onPressed: () =>
-                        _openReportFlagSheet(
-                      report,
-                    ),
-                    icon:
-                        const Icon(
-                      Icons.flag_outlined,
-                      size: 16,
-                    ),
-                    label:
-                        const Text(
-                      "Report",
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
+  if (report.safetyLevel
+      .trim()
+      .isNotEmpty) {
+    headlineParts.add(
+      report.safetyLevel.trim(),
     );
   }
+
+  final parkingParts = <String>[];
+
+  if (report.parkingAvailability
+      .trim()
+      .isNotEmpty) {
+    parkingParts.add(
+      report.parkingAvailability
+          .trim(),
+    );
+  }
+
+  if (report.parkingSafety
+      .trim()
+      .isNotEmpty) {
+    parkingParts.add(
+      report.parkingSafety
+          .trim(),
+    );
+  }
+
+  return Card(
+    margin:
+        const EdgeInsets.only(
+      bottom: 10,
+    ),
+    child: Padding(
+      padding:
+          const EdgeInsets.all(
+        14,
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  headlineParts.join(
+                    " • ",
+                  ),
+                  style:
+                      const TextStyle(
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              if (!current)
+                Container(
+                  margin:
+                      const EdgeInsets.only(
+                    left: 8,
+                  ),
+                  padding:
+                      const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        Colors.grey[300],
+                    borderRadius:
+                        BorderRadius.circular(
+                      8,
+                    ),
+                  ),
+                  child:
+                      const Text(
+                    "Older",
+                    style:
+                        TextStyle(
+                      fontSize: 11,
+                      color:
+                          Colors.black87,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          if (report.musicType
+              .trim()
+              .isNotEmpty) ...[
+            const SizedBox(
+              height: 6,
+            ),
+
+            Text(
+              "Music: "
+              "${report.musicType.trim()}",
+            ),
+          ],
+
+          if (report.queueLength
+              .trim()
+              .isNotEmpty) ...[
+            const SizedBox(
+              height: 4,
+            ),
+
+            Text(
+              "Queue: "
+              "${report.queueLength.trim()}",
+            ),
+          ],
+
+          if (parkingParts
+              .isNotEmpty) ...[
+            const SizedBox(
+              height: 4,
+            ),
+
+            Text(
+              "Parking: "
+              "${parkingParts.join(" • ")}",
+            ),
+          ],
+
+          if (report.parkingNote
+              .trim()
+              .isNotEmpty) ...[
+            const SizedBox(
+              height: 6,
+            ),
+
+            Text(
+              report.parkingNote
+                  .trim(),
+            ),
+          ],
+
+          if (report.comment
+              .trim()
+              .isNotEmpty) ...[
+            const SizedBox(
+              height: 6,
+            ),
+
+            Text(
+              report.comment.trim(),
+            ),
+          ],
+
+          const SizedBox(
+            height: 8,
+          ),
+
+          Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Text(
+                report
+                    .freshnessLabel(),
+                style:
+                    TextStyle(
+                  color:
+                      Colors.grey[600],
+                  fontSize: 12,
+                ),
+              ),
+
+              if (report.id
+                  .trim()
+                  .isNotEmpty) ...[
+                const SizedBox(
+                  height: 4,
+                ),
+
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 0,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () =>
+                          _openReportFlagSheet(
+                        report,
+                      ),
+                      icon:
+                          const Icon(
+                        Icons.flag_outlined,
+                        size: 16,
+                      ),
+                      label:
+                          const Text(
+                        "Report",
+                      ),
+                    ),
+
+                    TextButton.icon(
+                      onPressed: () =>
+                          _blockReportContributor(
+                        report,
+                      ),
+                      icon:
+                          const Icon(
+                        Icons.block_outlined,
+                        size: 16,
+                      ),
+                      label:
+                          const Text(
+                        "Block contributor",
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }
+    }

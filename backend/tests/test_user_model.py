@@ -34,6 +34,14 @@ def test_user_profile_defaults():
 
     assert profile.created_at is None
 
+    assert profile.terms_version == ""
+    assert profile.privacy_version == ""
+    assert profile.legal_accepted_at is None
+    assert (
+        profile.legal_acceptance_current
+        is False
+    )
+
 
 def test_user_profile_accepts_identity_and_stats():
     profile = UserProfileResponse(
@@ -78,6 +86,26 @@ def test_user_profile_accepts_identity_and_stats():
     )
 
     assert profile.report_count == 12
+
+
+
+def test_user_profile_accepts_legal_state():
+    profile = UserProfileResponse(
+        uid="user_123",
+        terms_version="1.0",
+        privacy_version="1.0",
+        legal_accepted_at=(
+            "2026-10-11T10:00:00+00:00"
+        ),
+        legal_acceptance_current=True,
+    )
+
+    assert profile.terms_version == "1.0"
+    assert profile.privacy_version == "1.0"
+    assert (
+        profile.legal_acceptance_current
+        is True
+    )
 
 
 def test_user_profile_update_accepts_identity():

@@ -13,6 +13,7 @@ from app.models.event_model import (
 
 from app.services.account_deletion_service import (
     _event_owner_cleanup_update,
+    _report_owner_cleanup_update,
     _safe_int,
     require_recent_auth,
 )
@@ -75,6 +76,36 @@ def test_recent_auth_requires_auth_time():
     assert (
         error.value.status_code
         == 401
+    )
+
+
+
+def test_report_cleanup_removes_current_identity_fields():
+    now = datetime(
+        2026,
+        10,
+        11,
+        8,
+        0,
+        tzinfo=
+            timezone.utc,
+    )
+
+    update = (
+        _report_owner_cleanup_update(
+            now
+        )
+    )
+
+    assert update["uid"] == ""
+    assert (
+        update["author_deleted"]
+        is True
+    )
+    assert "user_email" in update
+    assert (
+        "user_display_name"
+        in update
     )
 
 

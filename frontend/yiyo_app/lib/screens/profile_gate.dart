@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import 'legal_acceptance_screen.dart';
 import 'main_navigation_screen.dart';
 
 
@@ -246,6 +247,13 @@ class _ProfileGateState
 
     if (profile == null) {
       return const SizedBox();
+    }
+
+    if (!profile.legalAcceptanceCurrent) {
+      return LegalAcceptanceScreen(
+        onAccepted:
+            _profileCompleted,
+      );
     }
 
     if (profile.profileComplete) {

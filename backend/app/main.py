@@ -1,56 +1,113 @@
 from datetime import datetime, timezone
 from typing import Optional
-from app.services.authorization_service import (
-    get_effective_permissions,
-    grant_business_membership,
-    require_moderator,
-    require_super_admin,
-    suspend_business_membership,
-    get_admin_user_access_by_username,
-    search_admin_venues,
-    get_profile_access_summary,
 
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
 )
+from fastapi.middleware.cors import (
+    CORSMiddleware,
+)
+from firebase_admin import auth as firebase_auth
+from google.cloud.firestore_v1.base_query import (
+    FieldFilter,
+)
+
+from app.firebase_config import db
+
 from app.models.authorization_model import (
     MembershipGrantRequest,
 )
+from app.models.event_engagement_model import (
+    EventReactionType,
+)
+from app.models.event_model import (
+    EventCreate,
+    EventUpdate,
+)
+from app.models.moderation_model import (
+    ModerationResolutionRequest,
+)
+from app.models.report_model import (
+    ReportFlagCreate,
+    VibeReportCreate,
+)
+from app.models.user_model import (
+    UserProfileUpdate,
+)
+from app.models.venue_model import (
+    VenueRecord,
+)
+
 from app.services.account_deletion_service import (
     delete_yiyo_account_data,
     require_recent_auth,
+)
+from app.services.authorization_service import (
+    get_admin_user_access_by_username,
+    get_effective_permissions,
+    get_profile_access_summary,
+    grant_business_membership,
+    require_moderator,
+    require_super_admin,
+    search_admin_venues,
+    suspend_business_membership,
+)
+from app.services.blocking_service import (
+    block_event_organizer,
+    block_report_contributor,
+    get_blocked_user_ids,
+)
+from app.services.event_engagement_service import (
+    get_event_engagement_state,
+    toggle_event_reaction,
+)
+from app.services.event_moderation_service import (
+    flag_event_for_moderation,
+)
+from app.services.event_service import (
+    approve_event,
+    cancel_event,
+    create_event,
+    delete_event,
+    get_manageable_events,
+    get_pending_event_approvals,
+    get_public_event,
+    get_upcoming_events,
+    get_user_events,
+    reject_event,
+    update_event,
 )
 from app.services.materialized_vibe_service import (
     attach_materialized_community_states,
     safe_rebuild_venue_community_summary,
 )
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
-from firebase_admin import auth as firebase_auth
-from google.cloud.firestore_v1.base_query import FieldFilter
-from app.services.user_service import (
-    get_user_contributions,
-    get_user_profile,
-    update_user_identity,
+from app.services.moderation_service import (
+    get_super_admin_moderation_queue,
+    resolve_community_report,
+    resolve_event_report,
 )
-from app.services.vibe_summary_service import (
-    build_current_vibe_summary,
-)
-from app.models.user_model import (
-    UserProfileUpdate,
-)
-from app.firebase_config import db
-from app.models.report_model import (
-    ReportFlagCreate,
-    VibeReportCreate,
+from app.services.places_service import (
+    apply_discovery_context,
+    fetch_nightlife_places,
+    search_places_by_text,
 )
 from app.services.report_service import (
     enforce_contribution_rate_limits,
     flag_report_for_moderation,
 )
-from app.models.venue_model import VenueRecord
-from app.services.places_service import (
-    apply_discovery_context,
-    fetch_nightlife_places,
-    search_places_by_text,
+from app.services.user_service import (
+    get_user_contributions,
+    get_user_profile,
+    record_current_legal_acceptance,
+    require_current_legal_acceptance,
+    update_user_identity,
+)
+from app.services.vibe_summary_service import (
+    build_current_vibe_summary,
 )
 from app.services.yiyo_logic import (
     contributor_level_from_count,
@@ -60,35 +117,10 @@ from app.services.yiyo_logic import (
     location_key_for,
 )
 
-from app.models.event_model import (
-    EventCreate,
-    EventUpdate,
-)
 
-from app.services.event_service import (
-    approve_event,
-    cancel_event,
-    create_event,
-    get_pending_event_approvals,
-    get_public_event,
-    get_upcoming_events,
-    get_user_events,
-    reject_event,
-    delete_event,
-    get_manageable_events,
-    update_event,
+app = FastAPI(
+    title="YIYO Backend",
 )
-
-from app.models.event_engagement_model import (
-    EventReactionType,
-)
-
-from app.services.event_engagement_service import (
-    get_event_engagement_state,
-    toggle_event_reaction,
-)
-
-app = FastAPI(title="YIYO Backend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -100,12 +132,24 @@ app.add_middleware(
 
 
 VENUES_COLLECTION = "venues_v2"
-VENUE_AREA_CACHE_COLLECTION = "venue_area_cache"
-REPORTS_COLLECTION = "vibe_reports"
-USERS_COLLECTION = "users"
+
+VENUE_AREA_CACHE_COLLECTION = (
+    "venue_area_cache"
+)
+
+REPORTS_COLLECTION = (
+    "vibe_reports"
+)
+
+USERS_COLLECTION = (
+    "users"
+)
 
 REPORT_COOLDOWN_SECONDS = 300
-VENUE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
+
+VENUE_CACHE_TTL_SECONDS = (
+    7 * 24 * 60 * 60
+)
 
 
 # ---------------------------------------------------------------------------
@@ -113,18 +157,28 @@ VENUE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
 # ---------------------------------------------------------------------------
 
 def get_current_user(
-    authorization: Optional[str] = Header(default=None),
+    authorization: Optional[str] = Header(
+        default=None
+    ),
 ):
     if not authorization:
         raise HTTPException(
             status_code=401,
-            detail="Missing Authorization header",
+            detail=(
+                "Missing Authorization "
+                "header"
+            ),
         )
 
-    if not authorization.startswith("Bearer "):
+    if not authorization.startswith(
+        "Bearer "
+    ):
         raise HTTPException(
             status_code=401,
-            detail="Invalid Authorization header",
+            detail=(
+                "Invalid Authorization "
+                "header"
+            ),
         )
 
     token = authorization.split(
@@ -145,13 +199,16 @@ def get_current_user(
 
     except Exception as e:
         print(
-            "[ERROR] Token verification failed: "
+            "[ERROR] Token verification "
+            "failed: "
             f"{e}"
         )
 
         raise HTTPException(
             status_code=401,
-            detail="Invalid or expired token",
+            detail=(
+                "Invalid or expired token"
+            ),
         )
 
 
@@ -182,7 +239,9 @@ def save_venues_to_firestore(
                 "google_last_refreshed_at":
                     now.isoformat(),
                 "google_last_refreshed_at_unix":
-                    int(now.timestamp()),
+                    int(
+                        now.timestamp()
+                    ),
             }
 
             record = VenueRecord(
@@ -193,7 +252,9 @@ def save_venues_to_firestore(
                 db.collection(
                     VENUES_COLLECTION
                 )
-                .document(place_id)
+                .document(
+                    place_id
+                )
                 .set(
                     record.model_dump(),
                     merge=False,
@@ -204,8 +265,10 @@ def save_venues_to_firestore(
 
         except Exception as e:
             print(
-                "[ERROR] Failed to save venue "
-                f"{venue.get('name')}: {e}"
+                "[ERROR] Failed to save "
+                "venue "
+                f"{venue.get('name')}: "
+                f"{e}"
             )
 
     return saved
@@ -216,9 +279,11 @@ def save_area_cache(
     lng: float,
     venues: list[dict],
 ):
-    location_key = location_key_for(
-        lat,
-        lng,
+    location_key = (
+        location_key_for(
+            lat,
+            lng,
+        )
     )
 
     now = datetime.now(
@@ -229,13 +294,18 @@ def save_area_cache(
 
     for venue in venues:
         venue_id = (
-            venue.get("place_id")
-            or venue.get("id")
+            venue.get(
+                "place_id"
+            )
+            or venue.get(
+                "id"
+            )
         )
 
         if (
             venue_id
-            and venue_id not in venue_ids
+            and venue_id
+            not in venue_ids
         ):
             venue_ids.append(
                 venue_id
@@ -245,15 +315,22 @@ def save_area_cache(
         db.collection(
             VENUE_AREA_CACHE_COLLECTION
         )
-        .document(location_key)
+        .document(
+            location_key
+        )
         .set(
             {
                 "location_key":
                     location_key,
+
                 "venue_ids":
                     venue_ids,
+
                 "last_refreshed_at_unix":
-                    int(now.timestamp()),
+                    int(
+                        now.timestamp()
+                    ),
+
                 "last_refreshed_at":
                     now.isoformat(),
             },
@@ -266,16 +343,20 @@ def load_cached_area_venues(
     lat: float,
     lng: float,
 ) -> Optional[list[dict]]:
-    location_key = location_key_for(
-        lat,
-        lng,
+    location_key = (
+        location_key_for(
+            lat,
+            lng,
+        )
     )
 
     area_snapshot = (
         db.collection(
             VENUE_AREA_CACHE_COLLECTION
         )
-        .document(location_key)
+        .document(
+            location_key
+        )
         .get()
     )
 
@@ -313,8 +394,11 @@ def load_cached_area_venues(
     venue_refs = [
         db.collection(
             VENUES_COLLECTION
-        ).document(venue_id)
-        for venue_id in venue_ids
+        ).document(
+            venue_id
+        )
+        for venue_id
+        in venue_ids
     ]
 
     docs = db.get_all(
@@ -322,8 +406,13 @@ def load_cached_area_venues(
     )
 
     venues = [
-        doc.to_dict()
-        | {"id": doc.id}
+        (
+            doc.to_dict()
+            | {
+                "id":
+                    doc.id,
+            }
+        )
         for doc in docs
         if doc.exists
     ]
@@ -334,7 +423,8 @@ def load_cached_area_venues(
             lat,
             lng,
         )
-        for venue in venues
+        for venue
+        in venues
     ]
 
     venues = (
@@ -375,10 +465,15 @@ def load_cached_area_venues(
 def get_or_build_area_venues(
     lat: float,
     lng: float,
-) -> tuple[str, list[dict]]:
-    cached = load_cached_area_venues(
-        lat,
-        lng,
+) -> tuple[
+    str,
+    list[dict],
+]:
+    cached = (
+        load_cached_area_venues(
+            lat,
+            lng,
+        )
     )
 
     if cached is not None:
@@ -387,9 +482,11 @@ def get_or_build_area_venues(
             cached,
         )
 
-    venues = fetch_nightlife_places(
-        lat,
-        lng,
+    venues = (
+        fetch_nightlife_places(
+            lat,
+            lng,
+        )
     )
 
     save_venues_to_firestore(
@@ -421,14 +518,18 @@ def get_canonical_venue_or_404(
         db.collection(
             VENUES_COLLECTION
         )
-        .document(venue_id)
+        .document(
+            venue_id
+        )
         .get()
     )
 
     if not snapshot.exists:
         raise HTTPException(
             status_code=404,
-            detail="Venue not found",
+            detail=(
+                "Venue not found"
+            ),
         )
 
     venue = (
@@ -446,17 +547,20 @@ def get_canonical_venue_or_404(
     if not venue_name:
         raise HTTPException(
             status_code=500,
-            detail="Venue record is invalid",
+            detail=(
+                "Venue record is invalid"
+            ),
         )
 
     return {
         **venue,
-        "id": snapshot.id,
+        "id":
+            snapshot.id,
     }
 
 
 # ---------------------------------------------------------------------------
-# Search
+# Search helpers
 # ---------------------------------------------------------------------------
 
 def score_cached_match(
@@ -474,7 +578,11 @@ def score_cached_match(
         .strip()
     )
 
-    q = query.lower().strip()
+    q = (
+        query
+        .lower()
+        .strip()
+    )
 
     if not q:
         return 0
@@ -487,21 +595,25 @@ def score_cached_match(
 
     tokens = [
         token
-        for token in q.split()
+        for token
+        in q.split()
         if token
     ]
 
     token_hits = sum(
         1
-        for token in tokens
+        for token
+        in tokens
         if token in name
     )
 
-    return token_hits * 12
+    return (
+        token_hits * 12
+    )
 
 
 # ---------------------------------------------------------------------------
-# Community state / moderation
+# Community state / contributor stats
 # ---------------------------------------------------------------------------
 
 def update_user_report_stats(
@@ -511,10 +623,14 @@ def update_user_report_stats(
         db.collection(
             USERS_COLLECTION
         )
-        .document(uid)
+        .document(
+            uid
+        )
     )
 
-    snapshot = user_ref.get()
+    snapshot = (
+        user_ref.get()
+    )
 
     if not snapshot.exists:
         return
@@ -545,8 +661,10 @@ def update_user_report_stats(
         {
             "report_count":
                 current_count,
+
             "contributor_level":
                 contributor_level,
+
             "updated_at":
                 datetime.now(
                     timezone.utc
@@ -585,13 +703,22 @@ def get_venues(
     )
 
     return {
-        "source": source,
-        "count": len(venues),
-        "venues": venues,
+        "source":
+            source,
+
+        "count":
+            len(
+                venues
+            ),
+
+        "venues":
+            venues,
     }
 
 
-@app.get("/venues/yiyo")
+@app.get(
+    "/venues/yiyo"
+)
 def get_yiyo_venues(
     lat: float = Query(...),
     lng: float = Query(...),
@@ -605,7 +732,8 @@ def get_yiyo_venues(
 
     yiyo_venues = [
         venue
-        for venue in venues
+        for venue
+        in venues
         if (
             venue.get(
                 "yiyo_badge"
@@ -616,7 +744,9 @@ def get_yiyo_venues(
 
     return {
         "count":
-            len(yiyo_venues),
+            len(
+                yiyo_venues
+            ),
 
         "venues":
             yiyo_venues,
@@ -631,14 +761,18 @@ def search_venues(
     ),
     lat: float = Query(...),
     lng: float = Query(...),
-    enrich_area: bool = Query(False),
+    enrich_area: bool = Query(
+        False
+    ),
 ):
     query = q.strip()
 
     if not query:
         raise HTTPException(
             status_code=400,
-            detail="Query is required",
+            detail=(
+                "Query is required"
+            ),
         )
 
     cached_area_venues = (
@@ -700,7 +834,9 @@ def search_venues(
 
     if matched_cached:
         best_match = (
-            matched_cached[0]
+            matched_cached[
+                0
+            ]
         )
 
         best_match_id = (
@@ -717,32 +853,36 @@ def search_venues(
             for venue
             in cached_area_venues
             if (
-                venue.get(
-                    "place_id"
+                (
+                    venue.get(
+                        "place_id"
+                    )
+                    or venue.get(
+                        "id"
+                    )
                 )
-                or venue.get(
-                    "id"
-                )
+                != best_match_id
             )
-            != best_match_id
         ]
 
         return {
             "source":
                 "firestore_search",
+
             "best_match":
                 best_match,
+
             "related_venues":
                 related[:12],
+
             "used_places_call":
                 False,
         }
 
-    # The venue may already exist in YIYO's
-    # canonical registry even when it is not
-    # part of this location's current area cache.
-    # Check venues_v2 before paying for another
-    # Google Places text search.
+    # The venue may already exist in
+    # YIYO's canonical registry even
+    # when it is outside this area's
+    # currently cached venue set.
     if len(query) >= 2:
         registry_matches = (
             search_admin_venues(
@@ -756,36 +896,43 @@ def search_venues(
                 db.collection(
                     VENUES_COLLECTION
                 ).document(
-                    item["id"]
+                    item[
+                        "id"
+                    ]
                 )
                 for item
                 in registry_matches
             ]
 
-            docs = db.get_all(
-                venue_refs
+            docs = (
+                db.get_all(
+                    venue_refs
+                )
             )
 
             registry_by_id = {
                 doc.id: (
-                    doc.to_dict()
-                    or {}
+                    (
+                        doc.to_dict()
+                        or {}
+                    )
+                    | {
+                        "id":
+                            doc.id,
+                    }
                 )
-                | {
-                    "id": doc.id,
-                }
                 for doc in docs
                 if doc.exists
             }
 
             registry_venues = []
 
-            # Preserve the ranking returned by
-            # search_admin_venues().
             for match in registry_matches:
                 venue = (
                     registry_by_id.get(
-                        match["id"]
+                        match[
+                            "id"
+                        ]
                     )
                 )
 
@@ -809,7 +956,8 @@ def search_venues(
                     print(
                         "[WARN] Invalid registry "
                         "venue during search "
-                        f"{match['id']}: {e}"
+                        f"{match['id']}: "
+                        f"{e}"
                     )
                     continue
 
@@ -827,18 +975,27 @@ def search_venues(
                 return {
                     "source":
                         "firestore_registry_search",
+
                     "best_match":
-                        registry_venues[0],
+                        registry_venues[
+                            0
+                        ],
+
                     "related_venues":
-                        registry_venues[1:13],
+                        registry_venues[
+                            1:13
+                        ],
+
                     "used_places_call":
                         False,
+
                     "enriched_area":
                         False,
                 }
 
-    # Google Places is the final fallback only
-    # when YIYO does not already know the venue.
+    # Google Places is the final
+    # fallback only when YIYO does not
+    # already know the venue.
     search_results = (
         search_places_by_text(
             query,
@@ -864,8 +1021,12 @@ def search_venues(
     )
 
     related_venues = (
-        search_results[1:13]
-        if len(search_results) > 1
+        search_results[
+            1:13
+        ]
+        if len(
+            search_results
+        ) > 1
         else []
     )
 
@@ -875,8 +1036,12 @@ def search_venues(
     ):
         enriched = (
             fetch_nightlife_places(
-                best_match["lat"],
-                best_match["lng"],
+                best_match[
+                    "lat"
+                ],
+                best_match[
+                    "lng"
+                ],
             )
         )
 
@@ -885,8 +1050,12 @@ def search_venues(
         )
 
         save_area_cache(
-            best_match["lat"],
-            best_match["lng"],
+            best_match[
+                "lat"
+            ],
+            best_match[
+                "lng"
+            ],
             enriched,
         )
 
@@ -897,14 +1066,17 @@ def search_venues(
         )
 
         seen: set[str] = set()
+
         merged_related = []
 
         for item in (
             related_venues
             + enriched
         ):
-            place_id = item.get(
-                "place_id"
+            place_id = (
+                item.get(
+                    "place_id"
+                )
             )
 
             if (
@@ -925,45 +1097,58 @@ def search_venues(
                 )
 
         related_venues = (
-            merged_related[:12]
+            merged_related[
+                :12
+            ]
         )
 
     return {
         "source":
             "google_text_search",
+
         "best_match":
             best_match,
+
         "related_venues":
             related_venues,
+
         "used_places_call":
             True,
+
         "enriched_area":
             (
                 enrich_area
-                and best_match is not None
+                and best_match
+                is not None
             ),
     }
 
 
 # ---------------------------------------------------------------------------
-# Contributions
+# Contributions / vibe reports
 # ---------------------------------------------------------------------------
 
 @app.post("/reports")
 def create_vibe_report(
-    report: VibeReportCreate,
+    report:
+        VibeReportCreate,
+
     current_user=Depends(
         get_current_user
     ),
 ):
     try:
-        uid = current_user.get(
-            "uid"
+        uid = (
+            current_user.get(
+                "uid"
+            )
         )
 
-        email = current_user.get(
-            "email",
-            "",
+        email = (
+            current_user.get(
+                "email",
+                "",
+            )
         )
 
         display_name = (
@@ -976,8 +1161,14 @@ def create_vibe_report(
         if not uid:
             raise HTTPException(
                 status_code=401,
-                detail="Invalid user",
+                detail=(
+                    "Invalid user"
+                ),
             )
+
+        require_current_legal_acceptance(
+            uid
+        )
 
         canonical_venue = (
             get_canonical_venue_or_404(
@@ -985,9 +1176,13 @@ def create_vibe_report(
             )
         )
 
-        canonical_venue_name = str(
-            canonical_venue["name"]
-        ).strip()
+        canonical_venue_name = (
+            str(
+                canonical_venue[
+                    "name"
+                ]
+            ).strip()
+        )
 
         enforce_contribution_rate_limits(
             uid,
@@ -997,10 +1192,6 @@ def create_vibe_report(
         now = datetime.now(
             timezone.utc
         )
-
-        # ------------------------------------------------------------------
-        # Required / server-owned report fields
-        # ------------------------------------------------------------------
 
         payload = {
             "venue_id":
@@ -1032,33 +1223,39 @@ def create_vibe_report(
             "user_display_name":
                 display_name,
 
-            # Moderation state is owned by the server.
             "status":
                 "active",
         }
 
-        # ------------------------------------------------------------------
-        # Optional Quick Vibe detail fields
-        #
-        # Only store these when the user actually supplied them.
-        # This prevents a quick contribution from inventing/recording
-        # unknown safety, music, queue or parking information.
-        # ------------------------------------------------------------------
-
-        if report.safety_level is not None:
+        if (
+            report.safety_level
+            is not None
+        ):
             payload[
                 "safety_level"
-            ] = report.safety_level
+            ] = (
+                report.safety_level
+            )
 
-        if report.music_type is not None:
+        if (
+            report.music_type
+            is not None
+        ):
             payload[
                 "music_type"
-            ] = report.music_type
+            ] = (
+                report.music_type
+            )
 
-        if report.queue_length is not None:
+        if (
+            report.queue_length
+            is not None
+        ):
             payload[
                 "queue_length"
-            ] = report.queue_length
+            ] = (
+                report.queue_length
+            )
 
         if (
             report.parking_availability
@@ -1067,27 +1264,34 @@ def create_vibe_report(
             payload[
                 "parking_availability"
             ] = (
-                report.parking_availability
+                report
+                .parking_availability
             )
 
-        if report.parking_safety is not None:
+        if (
+            report.parking_safety
+            is not None
+        ):
             payload[
                 "parking_safety"
-            ] = report.parking_safety
+            ] = (
+                report
+                .parking_safety
+            )
 
         if report.parking_note:
             payload[
                 "parking_note"
-            ] = report.parking_note
+            ] = (
+                report.parking_note
+            )
 
         if report.comment:
             payload[
                 "comment"
-            ] = report.comment
-
-        # ------------------------------------------------------------------
-        # Persist source report
-        # ------------------------------------------------------------------
+            ] = (
+                report.comment
+            )
 
         doc_ref = (
             db.collection(
@@ -1104,16 +1308,13 @@ def create_vibe_report(
             uid
         )
 
-        # vibe_reports remains the source of truth.
-        #
-        # Rebuilding the discovery cache is best-effort:
-        # a cache/index failure must never turn a valid
-        # contribution into a failed submission.
         safe_rebuild_venue_community_summary(
             report.venue_id
         )
 
-        payload["id"] = (
+        payload[
+            "id"
+        ] = (
             doc_ref.id
         )
 
@@ -1131,26 +1332,34 @@ def create_vibe_report(
     except Exception as e:
         print(
             "[ERROR] Failed to save "
-            f"report: {e}"
+            "report: "
+            f"{e}"
         )
 
         raise HTTPException(
             status_code=500,
-            detail=
-                "Failed to save report",
+            detail=(
+                "Failed to save report"
+            ),
         )
 
 
-@app.post("/reports/{report_id}/flag")
+@app.post(
+    "/reports/{report_id}/flag"
+)
 def flag_report(
     report_id: str,
-    flag: ReportFlagCreate,
+    flag:
+        ReportFlagCreate,
+
     current_user=Depends(
         get_current_user
     ),
 ):
-    uid = current_user.get(
-        "uid"
+    uid = (
+        current_user.get(
+            "uid"
+        )
     )
 
     if not uid:
@@ -1160,16 +1369,64 @@ def flag_report(
         )
 
     return flag_report_for_moderation(
-        report_id=report_id,
-        uid=uid,
-        reason=flag.reason,
-        details=flag.details,
+        report_id=
+            report_id,
+
+        uid=
+            uid,
+
+        reason=
+            flag.reason,
+
+        details=
+            flag.details,
     )
 
 
-@app.get("/reports/{venue_id}")
+@app.post(
+    "/reports/{report_id}/block-contributor"
+)
+def block_vibe_report_contributor(
+    report_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = str(
+        current_user.get(
+            "uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Invalid user"
+            ),
+        )
+
+    return block_report_contributor(
+        report_id=
+            report_id,
+
+        blocker_uid=
+            uid,
+    )
+
+
+@app.get(
+    "/reports/{venue_id}"
+)
 def get_reports_for_venue(
     venue_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
 ):
     try:
         docs = (
@@ -1177,46 +1434,79 @@ def get_reports_for_venue(
                 REPORTS_COLLECTION
             )
             .where(
-                filter=FieldFilter(
-                    "venue_id",
-                    "==",
-                    venue_id,
-                )
+                filter=
+                    FieldFilter(
+                        "venue_id",
+                        "==",
+                        venue_id,
+                    )
             )
             .stream()
         )
 
         all_reports = [
-            doc.to_dict()
-            | {"id": doc.id}
-            for doc in docs
+            (
+                doc.to_dict()
+                | {
+                    "id":
+                        doc.id,
+                }
+            )
+            for doc
+            in docs
         ]
 
-        # Legacy reports without a status are treated as active.
-        # Flagged and removed reports stay in Firestore but are not
-        # returned publicly.
+        uid = str(
+            current_user.get(
+                "uid",
+                "",
+            )
+            or ""
+        ).strip()
+
+        blocked_user_ids = (
+            get_blocked_user_ids(
+                uid
+            )
+        )
+
         active_reports = [
             report
-            for report in all_reports
-            if is_report_active(
-                report
+            for report
+            in all_reports
+            if (
+                is_report_active(
+                    report
+                )
+                and str(
+                    report.get(
+                        "uid",
+                        "",
+                    )
+                    or ""
+                ).strip()
+                not in
+                blocked_user_ids
             )
         ]
 
         active_reports.sort(
-            key=lambda report: int(
-                report.get(
-                    "created_at_unix",
-                    0,
-                )
-                or 0
-            ),
+            key=lambda report:
+                int(
+                    report.get(
+                        "created_at_unix",
+                        0,
+                    )
+                    or 0
+                ),
             reverse=True,
         )
 
         yiyo_badge = (
             get_yiyo_badge_from_reports(
-                active_reports[:12]
+                active_reports[
+                    :12
+                ]
             )
         )
 
@@ -1228,10 +1518,18 @@ def get_reports_for_venue(
 
         public_reports = []
 
-        for report in active_reports[:20]:
+        for report in (
+            active_reports[
+                :20
+            ]
+        ):
             public_report = {
-                key: value
-                for key, value
+                key:
+                    value
+                for (
+                    key,
+                    value,
+                )
                 in report.items()
                 if key
                 not in {
@@ -1248,7 +1546,9 @@ def get_reports_for_venue(
 
         return {
             "count":
-                len(active_reports),
+                len(
+                    active_reports
+                ),
 
             "yiyo_badge":
                 yiyo_badge,
@@ -1260,16 +1560,21 @@ def get_reports_for_venue(
                 public_reports,
         }
 
+    except HTTPException:
+        raise
+
     except Exception as e:
         print(
-            "[ERROR] Failed to fetch reports "
-            f"for venue {venue_id}: {e}"
+            "[ERROR] Failed to fetch "
+            "reports for venue "
+            f"{venue_id}: {e}"
         )
 
         raise HTTPException(
             status_code=500,
-            detail=
-                "Failed to fetch reports",
+            detail=(
+                "Failed to fetch reports"
+            ),
         )
 
 
@@ -1283,51 +1588,130 @@ def get_my_profile(
         get_current_user
     ),
 ):
-    uid = current_user.get(
-        "uid"
+    uid = (
+        current_user.get(
+            "uid"
+        )
     )
 
     if not uid:
         raise HTTPException(
             status_code=401,
-            detail="Invalid user",
+            detail=(
+                "Invalid user"
+            ),
         )
 
     profile = get_user_profile(
-        uid=uid,
+        uid=
+            uid,
 
-        token_email=str(
-            current_user.get(
-                "email",
-                "",
-            )
-            or ""
-        ),
-
-        token_display_name=str(
-            current_user.get(
-                "name",
-                "",
-            )
-            or ""
-        ),
-
-        token_provider=str(
-            (
+        token_email=
+            str(
                 current_user.get(
-                    "firebase",
-                    {},
+                    "email",
+                    "",
                 )
-                or {}
-            ).get(
-                "sign_in_provider",
-                "",
-            )
-            or ""
-        ),
+                or ""
+            ),
+
+        token_display_name=
+            str(
+                current_user.get(
+                    "name",
+                    "",
+                )
+                or ""
+            ),
+
+        token_provider=
+            str(
+                (
+                    current_user.get(
+                        "firebase",
+                        {},
+                    )
+                    or {}
+                ).get(
+                    "sign_in_provider",
+                    "",
+                )
+                or ""
+            ),
     )
 
-    return profile.model_dump()
+    return (
+        profile.model_dump()
+    )
+
+
+@app.post(
+    "/me/legal-acceptance"
+)
+def accept_current_legal_policies(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = (
+        current_user.get(
+            "uid"
+        )
+    )
+
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Invalid user"
+            ),
+        )
+
+    record_current_legal_acceptance(
+        uid
+    )
+
+    profile = get_user_profile(
+        uid=
+            uid,
+
+        token_email=
+            str(
+                current_user.get(
+                    "email",
+                    "",
+                )
+                or ""
+            ),
+
+        token_display_name=
+            str(
+                current_user.get(
+                    "name",
+                    "",
+                )
+                or ""
+            ),
+
+        token_provider=
+            str(
+                (
+                    current_user.get(
+                        "firebase",
+                        {},
+                    )
+                    or {}
+                ).get(
+                    "sign_in_provider",
+                    "",
+                )
+                or ""
+            ),
+    )
+
+    return (
+        profile.model_dump()
+    )
 
 
 @app.delete("/me")
@@ -1336,8 +1720,10 @@ def delete_my_account(
         get_current_user
     ),
 ):
-    uid = require_recent_auth(
-        current_user
+    uid = (
+        require_recent_auth(
+            current_user
+        )
     )
 
     cleanup = (
@@ -1347,8 +1733,6 @@ def delete_my_account(
     )
 
     try:
-        # Firebase Auth is deliberately
-        # deleted LAST.
         firebase_auth.delete_user(
             uid
         )
@@ -1356,8 +1740,8 @@ def delete_my_account(
     except Exception as e:
         print(
             "[ERROR] YIYO account data "
-            "was cleaned but Firebase Auth "
-            "deletion failed for "
+            "was cleaned but Firebase "
+            "Auth deletion failed for "
             f"{uid}: {e}"
         )
 
@@ -1365,15 +1749,16 @@ def delete_my_account(
             status_code=500,
             detail=(
                 "Your account data was "
-                "prepared for deletion, but "
-                "authentication deletion "
+                "prepared for deletion, "
+                "but authentication deletion "
                 "could not finish. "
                 "Please try again."
             ),
         )
 
     print(
-        "[INFO] Deleted YIYO account "
+        "[INFO] Deleted YIYO "
+        "account "
         f"{uid}: {cleanup}"
     )
 
@@ -1385,40 +1770,47 @@ def delete_my_account(
 
 @app.patch("/me")
 def update_my_profile(
-    request: UserProfileUpdate,
+    request:
+        UserProfileUpdate,
 
     current_user=Depends(
         get_current_user
     ),
 ):
-    uid = current_user.get(
-        "uid"
+    uid = (
+        current_user.get(
+            "uid"
+        )
     )
 
     if not uid:
         raise HTTPException(
             status_code=401,
-            detail="Invalid user",
+            detail=(
+                "Invalid user"
+            ),
         )
 
-    profile = update_user_identity(
-        uid=
-            uid,
+    profile = (
+        update_user_identity(
+            uid=
+                uid,
 
-        username=
-            request.username,
+            username=
+                request.username,
 
-        full_name=
-            request.full_name,
+            full_name=
+                request.full_name,
 
-        token_email=
-            str(
-                current_user.get(
-                    "email",
-                    "",
-                )
-                or ""
-            ),
+            token_email=
+                str(
+                    current_user.get(
+                        "email",
+                        "",
+                    )
+                    or ""
+                ),
+        )
     )
 
     try:
@@ -1429,18 +1821,21 @@ def update_my_profile(
         )
 
     except Exception as e:
-        # Firestore remains the YIYO
-        # source of truth for profile identity.
         print(
             "[WARN] Failed to update "
-            "Firebase display name for "
+            "Firebase display name "
+            "for "
             f"{uid}: {e}"
         )
 
-    return profile.model_dump()
+    return (
+        profile.model_dump()
+    )
 
 
-@app.get("/me/event-approvals")
+@app.get(
+    "/me/event-approvals"
+)
 def get_my_event_approvals(
     limit: int = Query(
         50,
@@ -1456,6 +1851,7 @@ def get_my_event_approvals(
         get_pending_event_approvals(
             current_user=
                 current_user,
+
             limit=
                 limit,
         )
@@ -1463,13 +1859,16 @@ def get_my_event_approvals(
 
     return {
         "count":
-            len(events),
+            len(
+                events
+            ),
 
         "events": [
             event.model_dump(
                 mode="json"
             )
-            for event in events
+            for event
+            in events
         ],
     }
 
@@ -1486,32 +1885,47 @@ def get_my_reports(
         get_current_user
     ),
 ):
-    uid = current_user.get(
-        "uid"
+    uid = (
+        current_user.get(
+            "uid"
+        )
     )
 
     if not uid:
         raise HTTPException(
             status_code=401,
-            detail="Invalid user",
+            detail=(
+                "Invalid user"
+            ),
         )
 
     reports = (
         get_user_contributions(
-            uid=uid,
-            limit=limit,
+            uid=
+                uid,
+
+            limit=
+                limit,
         )
     )
 
     return {
-        "count": len(reports),
+        "count":
+            len(
+                reports
+            ),
 
         "reports": [
             report.model_dump()
-            for report in reports
+            for report
+            in reports
         ],
     }
 
+
+# ---------------------------------------------------------------------------
+# IMPORTANT: restored route used by MyEventsScreen
+# ---------------------------------------------------------------------------
 
 @app.get("/me/events")
 def get_my_events(
@@ -1525,25 +1939,35 @@ def get_my_events(
         get_current_user
     ),
 ):
-    events = get_user_events(
-        current_user=current_user,
-        limit=limit,
+    events = (
+        get_user_events(
+            current_user=
+                current_user,
+
+            limit=
+                limit,
+        )
     )
 
     return {
         "count":
-            len(events),
+            len(
+                events
+            ),
 
         "events": [
             event.model_dump(
                 mode="json"
             )
-            for event in events
+            for event
+            in events
         ],
     }
 
 
-@app.get("/me/permissions")
+@app.get(
+    "/me/permissions"
+)
 def get_my_permissions(
     current_user=Depends(
         get_current_user
@@ -1562,7 +1986,28 @@ def get_my_permissions(
     )
 
 
-@app.get("/moderation/access-check")
+@app.get(
+    "/me/access-summary"
+)
+def get_my_access_summary(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    return (
+        get_profile_access_summary(
+            current_user
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# Access / admin
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/moderation/access-check"
+)
 def moderation_access_check(
     current_user=Depends(
         get_current_user
@@ -1573,8 +2018,38 @@ def moderation_access_check(
     )
 
     return {
-        "ok": True,
-        "uid": auth.uid,
+        "ok":
+            True,
+
+        "uid":
+            auth.uid,
+
+        "app_role":
+            auth.app_role.value,
+    }
+
+
+@app.get(
+    "/admin/access-check"
+)
+def admin_access_check(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    auth = (
+        require_super_admin(
+            current_user
+        )
+    )
+
+    return {
+        "ok":
+            True,
+
+        "uid":
+            auth.uid,
+
         "app_role":
             auth.app_role.value,
     }
@@ -1602,34 +2077,21 @@ def admin_get_user_by_username(
     )
 
 
-@app.get("/admin/access-check")
-def admin_access_check(
-    current_user=Depends(
-        get_current_user
-    ),
-):
-    auth = require_super_admin(
-        current_user
-    )
-
-    return {
-        "ok": True,
-        "uid": auth.uid,
-        "app_role":
-            auth.app_role.value,
-    }
-
-
-@app.post("/admin/memberships")
+@app.post(
+    "/admin/memberships"
+)
 def admin_grant_membership(
-    request: MembershipGrantRequest,
+    request:
+        MembershipGrantRequest,
 
     current_user=Depends(
         get_current_user
     ),
 ):
-    admin = require_super_admin(
-        current_user
+    admin = (
+        require_super_admin(
+            current_user
+        )
     )
 
     membership = (
@@ -1654,6 +2116,7 @@ def admin_grant_membership(
         )
     )
 
+
 @app.post(
     "/admin/memberships/"
     "{membership_id}/suspend"
@@ -1665,13 +2128,16 @@ def admin_suspend_membership(
         get_current_user
     ),
 ):
-    admin = require_super_admin(
-        current_user
+    admin = (
+        require_super_admin(
+            current_user
+        )
     )
 
     membership = (
         suspend_business_membership(
             membership_id,
+
             suspended_by_uid=
                 admin.uid,
         )
@@ -1681,6 +2147,182 @@ def admin_suspend_membership(
         membership.model_dump(
             mode="json"
         )
+    )
+
+
+@app.get(
+    "/admin/venues/search"
+)
+def admin_search_venues(
+    q: str,
+
+    limit: int = 20,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    require_super_admin(
+        current_user
+    )
+
+    venues = (
+        search_admin_venues(
+            query=
+                q,
+
+            limit=
+                limit,
+        )
+    )
+
+    return {
+        "count":
+            len(
+                venues
+            ),
+
+        "venues":
+            venues,
+    }
+
+
+@app.get(
+    "/venues/registry-search"
+)
+def search_venue_registry(
+    q: str,
+
+    limit: int = 20,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    if (
+        limit < 1
+        or limit > 50
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid venue search "
+                "limit"
+            ),
+        )
+
+    venues = (
+        search_admin_venues(
+            query=
+                q,
+
+            limit=
+                limit,
+        )
+    )
+
+    return {
+        "count":
+            len(
+                venues
+            ),
+
+        "venues":
+            venues,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Super Admin moderation queue
+# ---------------------------------------------------------------------------
+
+@app.get(
+    "/admin/moderation"
+)
+def admin_moderation_queue(
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    require_super_admin(
+        current_user
+    )
+
+    return (
+        get_super_admin_moderation_queue()
+    )
+
+
+@app.post(
+    "/admin/moderation/community/"
+    "{report_id}/resolve"
+)
+def admin_resolve_community_report(
+    report_id: str,
+
+    request:
+        ModerationResolutionRequest,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    admin = (
+        require_super_admin(
+            current_user
+        )
+    )
+
+    return resolve_community_report(
+        report_id=
+            report_id,
+
+        decision=
+            request.decision,
+
+        reviewer_uid=
+            admin.uid,
+
+        note=
+            request.note,
+    )
+
+
+@app.post(
+    "/admin/moderation/events/"
+    "{event_id}/resolve"
+)
+def admin_resolve_event_report(
+    event_id: str,
+
+    request:
+        ModerationResolutionRequest,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    admin = (
+        require_super_admin(
+            current_user
+        )
+    )
+
+    return resolve_event_report(
+        event_id=
+            event_id,
+
+        decision=
+            request.decision,
+
+        reviewer_uid=
+            admin.uid,
+
+        note=
+            request.note,
+
+        current_user=
+            current_user,
     )
 
 
@@ -1695,24 +2337,241 @@ def list_upcoming_events(
         ge=1,
         le=100,
     ),
+
+    current_user=Depends(
+        get_current_user
+    ),
 ):
-    events = (
-        get_upcoming_events(
-            limit=limit
+    uid = str(
+        current_user.get(
+            "uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    blocked_user_ids = (
+        get_blocked_user_ids(
+            uid
         )
     )
 
+    # Launch volume is still small.
+    # Fetch enough candidates first so
+    # blocking organisers does not simply
+    # shrink the requested page.
+    candidates = (
+        get_upcoming_events(
+            limit=100
+        )
+    )
+
+    events = [
+        event
+        for event
+        in candidates
+        if (
+            event.organizer_uid
+            not in
+            blocked_user_ids
+        )
+    ][:limit]
+
     return {
         "count":
-            len(events),
+            len(
+                events
+            ),
 
         "events": [
             event.model_dump(
                 mode="json"
             )
-            for event in events
+            for event
+            in events
         ],
     }
+
+
+@app.post(
+    "/events",
+    status_code=201,
+)
+def create_yiyo_event(
+    request:
+        EventCreate,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = str(
+        current_user.get(
+            "uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Invalid user"
+            ),
+        )
+
+    require_current_legal_acceptance(
+        uid
+    )
+
+    canonical_venue = (
+        get_canonical_venue_or_404(
+            request.venue_id
+        )
+    )
+
+    event = (
+        create_event(
+            request=
+                request,
+
+            current_user=
+                current_user,
+
+            canonical_venue=
+                canonical_venue,
+        )
+    )
+
+    return (
+        event.model_dump(
+            mode="json"
+        )
+    )
+
+
+@app.get(
+    "/events/{event_id}"
+)
+def get_event(
+    event_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    event = (
+        get_public_event(
+            event_id
+        )
+    )
+
+    uid = str(
+        current_user.get(
+            "uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if (
+        event.organizer_uid
+        in get_blocked_user_ids(
+            uid
+        )
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Event not found"
+            ),
+        )
+
+    return (
+        event.model_dump(
+            mode="json"
+        )
+    )
+
+
+@app.post(
+    "/events/{event_id}/report"
+)
+def report_event(
+    event_id: str,
+
+    flag:
+        ReportFlagCreate,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = str(
+        current_user.get(
+            "uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Invalid user"
+            ),
+        )
+
+    return flag_event_for_moderation(
+        event_id=
+            event_id,
+
+        uid=
+            uid,
+
+        reason=
+            flag.reason,
+
+        details=
+            flag.details,
+    )
+
+
+@app.post(
+    "/events/{event_id}/block-organizer"
+)
+def block_yiyo_event_organizer(
+    event_id: str,
+
+    current_user=Depends(
+        get_current_user
+    ),
+):
+    uid = str(
+        current_user.get(
+            "uid",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Invalid user"
+            ),
+        )
+
+    return block_event_organizer(
+        event_id=
+            event_id,
+
+        blocker_uid=
+            uid,
+    )
 
 
 @app.post(
@@ -1725,58 +2584,20 @@ def cancel_yiyo_event(
         get_current_user
     ),
 ):
-    event = cancel_event(
-        event_id=event_id,
-        current_user=
-            current_user,
-    )
-
-    return event.model_dump(
-        mode="json"
-    )
-
-
-@app.get("/events/{event_id}")
-def get_event(
-    event_id: str,
-):
     event = (
-        get_public_event(
-            event_id
+        cancel_event(
+            event_id=
+                event_id,
+
+            current_user=
+                current_user,
         )
     )
 
-    return event.model_dump(
-        mode="json"
-    )
-
-
-@app.post(
-    "/events",
-    status_code=201,
-)
-def create_yiyo_event(
-    request: EventCreate,
-
-    current_user=Depends(
-        get_current_user
-    ),
-):
-    canonical_venue = (
-        get_canonical_venue_or_404(
-            request.venue_id
+    return (
+        event.model_dump(
+            mode="json"
         )
-    )
-
-    event = create_event(
-        request=request,
-        current_user=current_user,
-        canonical_venue=
-            canonical_venue,
-    )
-
-    return event.model_dump(
-        mode="json"
     )
 
 
@@ -1790,16 +2611,20 @@ def reject_yiyo_event(
         get_current_user
     ),
 ):
-    event = reject_event(
-        event_id=
-            event_id,
+    event = (
+        reject_event(
+            event_id=
+                event_id,
 
-        current_user=
-            current_user,
+            current_user=
+                current_user,
+        )
     )
 
-    return event.model_dump(
-        mode="json"
+    return (
+        event.model_dump(
+            mode="json"
+        )
     )
 
 
@@ -1813,14 +2638,20 @@ def approve_yiyo_event(
         get_current_user
     ),
 ):
-    event = approve_event(
-        event_id=event_id,
-        current_user=
-            current_user,
+    event = (
+        approve_event(
+            event_id=
+                event_id,
+
+            current_user=
+                current_user,
+        )
     )
 
-    return event.model_dump(
-        mode="json"
+    return (
+        event.model_dump(
+            mode="json"
+        )
     )
 
 
@@ -1848,8 +2679,10 @@ def toggle_event_hype(
         )
     )
 
-    return result.model_dump(
-        mode="json"
+    return (
+        result.model_dump(
+            mode="json"
+        )
     )
 
 
@@ -1877,8 +2710,10 @@ def toggle_event_going(
         )
     )
 
-    return result.model_dump(
-        mode="json"
+    return (
+        result.model_dump(
+            mode="json"
+        )
     )
 
 
@@ -1902,8 +2737,10 @@ def get_my_event_engagement(
         )
     )
 
-    return state.model_dump(
-        mode="json"
+    return (
+        state.model_dump(
+            mode="json"
+        )
     )
 
 
@@ -1912,24 +2749,51 @@ def get_my_event_engagement(
 )
 def edit_event(
     event_id: str,
-    request: EventUpdate,
+
+    request:
+        EventUpdate,
+
     current_user=Depends(
         get_current_user
     ),
 ):
-    event = update_event(
-        event_id=
-            event_id,
+    uid = str(
+        current_user.get(
+            "uid",
+            "",
+        )
+        or ""
+    ).strip()
 
-        request=
-            request,
+    if not uid:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Invalid user"
+            ),
+        )
 
-        current_user=
-            current_user,
+    require_current_legal_acceptance(
+        uid
     )
 
-    return event.model_dump(
-        mode="json"
+    event = (
+        update_event(
+            event_id=
+                event_id,
+
+            request=
+                request,
+
+            current_user=
+                current_user,
+        )
+    )
+
+    return (
+        event.model_dump(
+            mode="json"
+        )
     )
 
 
@@ -1938,6 +2802,7 @@ def edit_event(
 )
 def remove_event(
     event_id: str,
+
     current_user=Depends(
         get_current_user
     ),
@@ -1955,7 +2820,12 @@ def remove_event(
     "/me/manageable-events"
 )
 def my_manageable_events(
-    limit: int = 100,
+    limit: int = Query(
+        100,
+        ge=1,
+        le=100,
+    ),
+
     current_user=Depends(
         get_current_user
     ),
@@ -1984,85 +2854,3 @@ def my_manageable_events(
             in events
         ],
     }
-
-
-@app.get(
-    "/admin/venues/search"
-)
-def admin_search_venues(
-    q: str,
-    limit: int = 20,
-
-    current_user=Depends(
-        get_current_user
-    ),
-):
-    require_super_admin(
-        current_user
-    )
-
-    venues = (
-        search_admin_venues(
-            query=q,
-            limit=limit,
-        )
-    )
-
-    return {
-        "count":
-            len(venues),
-
-        "venues":
-            venues,
-    }
-
-
-@app.get(
-    "/venues/registry-search"
-)
-def search_venue_registry(
-    q: str,
-    limit: int = 20,
-
-    current_user=Depends(
-        get_current_user
-    ),
-):
-    if limit < 1 or limit > 50:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid venue search limit",
-        )
-
-    # Authenticated YIYO users may search
-    # venues already known to YIYO.
-    #
-    # This searches venues_v2 only and does
-    # not call Google Places.
-    venues = (
-        search_admin_venues(
-            query=q,
-            limit=limit,
-        )
-    )
-
-    return {
-        "count":
-            len(venues),
-
-        "venues":
-            venues,
-    }
-
-
-@app.get(
-    "/me/access-summary"
-)
-def get_my_access_summary(
-    current_user=Depends(
-        get_current_user
-    ),
-):
-    return get_profile_access_summary(
-        current_user
-    )

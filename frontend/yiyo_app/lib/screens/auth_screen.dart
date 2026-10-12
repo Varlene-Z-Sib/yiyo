@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../services/auth_service.dart';
+import 'legal_document_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({
@@ -58,6 +59,30 @@ class _AuthScreenState
     _passwordFocus.dispose();
 
     super.dispose();
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    await Navigator.of(
+      context,
+    ).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const LegalDocumentScreen
+                .privacy(),
+      ),
+    );
+  }
+
+  Future<void> _openTerms() async {
+    await Navigator.of(
+      context,
+    ).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const LegalDocumentScreen
+                .terms(),
+      ),
+    );
   }
 
   void _showMessage(
@@ -1563,7 +1588,55 @@ class _AuthScreenState
 
                     const SizedBox(
                       height:
-                          20,
+                          18,
+                    ),
+
+                    Wrap(
+                      alignment:
+                          WrapAlignment.center,
+                      spacing:
+                          2,
+                      children: [
+                        TextButton(
+                          onPressed:
+                              _openPrivacyPolicy,
+                          child:
+                              const Text(
+                            'Privacy Policy',
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.black87,
+                              fontSize:
+                                  12,
+                              fontWeight:
+                                  FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed:
+                              _openTerms,
+                          child:
+                              const Text(
+                            'Terms & Community Guidelines',
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.black87,
+                              fontSize:
+                                  12,
+                              fontWeight:
+                                  FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(
+                      height:
+                          2,
                     ),
 
                     Text(

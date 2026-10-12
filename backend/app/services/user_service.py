@@ -29,6 +29,9 @@ USERNAMES_COLLECTION = "usernames"
 
 REPORTS_COLLECTION = "vibe_reports"
 
+CURRENT_TERMS_VERSION = "1.0"
+CURRENT_PRIVACY_VERSION = "1.0"
+
 
 _USERNAME_PATTERN = re.compile(
     r"^[a-z0-9][a-z0-9_]{2,23}$"
@@ -202,6 +205,40 @@ def get_user_profile(
         else None
     )
 
+    terms_version = str(
+        data.get(
+            "terms_version",
+            "",
+        )
+        or ""
+    ).strip()
+
+    privacy_version = str(
+        data.get(
+            "privacy_version",
+            "",
+        )
+        or ""
+    ).strip()
+
+    legal_accepted_at_value = data.get(
+        "legal_accepted_at"
+    )
+
+    legal_accepted_at = (
+        str(legal_accepted_at_value)
+        if legal_accepted_at_value
+        is not None
+        else None
+    )
+
+    legal_acceptance_current = (
+        terms_version
+        == CURRENT_TERMS_VERSION
+        and privacy_version
+        == CURRENT_PRIVACY_VERSION
+    )
+
     return UserProfileResponse(
         uid=
             uid,
@@ -238,7 +275,127 @@ def get_user_profile(
 
         created_at=
             created_at,
+
+        terms_version=
+            terms_version,
+
+        privacy_version=
+            privacy_version,
+
+        legal_accepted_at=
+            legal_accepted_at,
+
+        legal_acceptance_current=
+            legal_acceptance_current,
     )
+
+
+def record_current_legal_acceptance(
+    uid: str,
+) -> None:
+    clean_uid = str(
+        uid
+        or ""
+    ).strip()
+
+    if not clean_uid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid user",
+        )
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    (
+        db.collection(
+            USERS_COLLECTION
+        )
+        .document(
+            clean_uid
+        )
+        .set(
+            {
+                "terms_version":
+                    CURRENT_TERMS_VERSION,
+
+                "privacy_version":
+                    CURRENT_PRIVACY_VERSION,
+
+                "legal_accepted_at":
+                    now.isoformat(),
+
+                "legal_accepted_at_unix":
+                    int(
+                        now.timestamp()
+                    ),
+            },
+            merge=True,
+        )
+    )
+
+
+def require_current_legal_acceptance(
+    uid: str,
+) -> None:
+    clean_uid = str(
+        uid
+        or ""
+    ).strip()
+
+    if not clean_uid:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid user",
+        )
+
+    snapshot = (
+        db.collection(
+            USERS_COLLECTION
+        )
+        .document(
+            clean_uid
+        )
+        .get()
+    )
+
+    data = (
+        snapshot.to_dict()
+        if snapshot.exists
+        else {}
+    ) or {}
+
+    terms_version = str(
+        data.get(
+            "terms_version",
+            "",
+        )
+        or ""
+    ).strip()
+
+    privacy_version = str(
+        data.get(
+            "privacy_version",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if (
+        terms_version
+        != CURRENT_TERMS_VERSION
+        or privacy_version
+        != CURRENT_PRIVACY_VERSION
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Accept YIYO's current "
+                "Terms of Use and Privacy "
+                "Policy before contributing."
+            ),
+        )
 
 
 def update_user_identity(

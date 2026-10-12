@@ -34,6 +34,13 @@ EVENT_REACTIONS_COLLECTION = (
     "event_reactions"
 )
 
+USER_BLOCKS_COLLECTION = (
+    "user_blocks"
+)
+
+EVENT_FLAGS_COLLECTION = (
+    "event_flags"
+)
 
 RECENT_AUTH_MAX_AGE_SECONDS = 5 * 60
 
@@ -207,6 +214,48 @@ def _delete_memberships(
     )
 
 
+def _report_owner_cleanup_update(
+    now: datetime,
+) -> dict:
+    return {
+        "uid":
+            "",
+
+        "author_deleted":
+            True,
+
+        "author_deleted_at":
+            now.isoformat(),
+
+        "author_deleted_at_unix":
+            int(
+                now.timestamp()
+            ),
+
+        # Current report fields.
+        "user_email":
+            firestore.DELETE_FIELD,
+
+        "user_display_name":
+            firestore.DELETE_FIELD,
+
+        # Defensive cleanup in case older /
+        # future report formats used these
+        # identity names.
+        "email":
+            firestore.DELETE_FIELD,
+
+        "username":
+            firestore.DELETE_FIELD,
+
+        "display_name":
+            firestore.DELETE_FIELD,
+
+        "full_name":
+            firestore.DELETE_FIELD,
+    }
+
+
 def _anonymize_reports(
     uid: str,
     now: datetime,
@@ -233,36 +282,9 @@ def _anonymize_reports(
     for doc in docs:
         batch.update(
             doc.reference,
-            {
-                "uid":
-                    "",
-
-                "author_deleted":
-                    True,
-
-                "author_deleted_at":
-                    now.isoformat(),
-
-                "author_deleted_at_unix":
-                    int(
-                        now.timestamp()
-                    ),
-
-                # Defensive cleanup in case
-                # older report formats ever
-                # stored profile information.
-                "email":
-                    firestore.DELETE_FIELD,
-
-                "username":
-                    firestore.DELETE_FIELD,
-
-                "display_name":
-                    firestore.DELETE_FIELD,
-
-                "full_name":
-                    firestore.DELETE_FIELD,
-            },
+            _report_owner_cleanup_update(
+                now
+            ),
         )
 
         pending += 1
@@ -697,6 +719,171 @@ def _delete_user_profile(
 
     return True
 
+def _delete_user_blocks(
+    uid: str,
+) -> int:
+    blocker_docs = list(
+        db.collection(
+            USER_BLOCKS_COLLECTION
+        )
+        .where(
+            filter=FieldFilter(
+                "blocker_uid",
+                "==",
+                uid,
+            )
+        )
+        .stream()
+    )
+
+    blocked_docs = list(
+        db.collection(
+            USER_BLOCKS_COLLECTION
+        )
+        .where(
+            filter=FieldFilter(
+                "blocked_uid",
+                "==",
+                uid,
+            )
+        )
+        .stream()
+    )
+
+    unique_docs = {
+        doc.id: doc
+        for doc in [
+            *blocker_docs,
+            *blocked_docs,
+        ]
+    }
+
+    return _delete_documents(
+        unique_docs.values()
+    )
+
+
+def _anonymize_event_flags(
+    uid: str,
+    now: datetime,
+) -> int:
+    flagged_by_docs = list(
+        db.collection(
+            EVENT_FLAGS_COLLECTION
+        )
+        .where(
+            filter=FieldFilter(
+                "flagged_by_uid",
+                "==",
+                uid,
+            )
+        )
+        .stream()
+    )
+
+    organizer_docs = list(
+        db.collection(
+            EVENT_FLAGS_COLLECTION
+        )
+        .where(
+            filter=FieldFilter(
+                "organizer_uid",
+                "==",
+                uid,
+            )
+        )
+        .stream()
+    )
+
+    docs_by_id = {
+        doc.id: doc
+        for doc in [
+            *flagged_by_docs,
+            *organizer_docs,
+        ]
+    }
+
+    batch = db.batch()
+
+    pending = 0
+    updated = 0
+
+    for doc in docs_by_id.values():
+        data = (
+            doc.to_dict()
+            or {}
+        )
+
+        update = {}
+
+        if (
+            str(
+                data.get(
+                    "flagged_by_uid",
+                    "",
+                )
+                or ""
+            ).strip()
+            == uid
+        ):
+            update[
+                "flagged_by_uid"
+            ] = ""
+
+            update[
+                "flagged_by_deleted_user"
+            ] = True
+
+        if (
+            str(
+                data.get(
+                    "organizer_uid",
+                    "",
+                )
+                or ""
+            ).strip()
+            == uid
+        ):
+            update[
+                "organizer_uid"
+            ] = ""
+
+            update[
+                "organizer_deleted"
+            ] = True
+
+        if not update:
+            continue
+
+        update[
+            "anonymized_at"
+        ] = now.isoformat()
+
+        update[
+            "anonymized_at_unix"
+        ] = int(
+            now.timestamp()
+        )
+
+        batch.update(
+            doc.reference,
+            update,
+        )
+
+        pending += 1
+        updated += 1
+
+        if pending >= BATCH_SIZE:
+            batch.commit()
+
+            batch = db.batch()
+
+            pending = 0
+
+    if pending > 0:
+        batch.commit()
+
+    return updated
 
 def delete_yiyo_account_data(
     uid: str,
@@ -728,6 +915,18 @@ def delete_yiyo_account_data(
     deleted_reactions = (
         _delete_event_reactions(
             clean_uid
+        )
+    )
+    deleted_blocks = (
+        _delete_user_blocks(
+            clean_uid
+        )
+    )
+
+    anonymized_event_flags = (
+        _anonymize_event_flags(
+            clean_uid,
+            now,
         )
     )
 
@@ -773,6 +972,12 @@ def delete_yiyo_account_data(
     return {
         "deleted_reactions":
             deleted_reactions,
+
+        "deleted_blocks":
+            deleted_blocks,
+
+        "anonymized_event_flags":
+            anonymized_event_flags,
 
         "anonymized_flags":
             anonymized_flags,

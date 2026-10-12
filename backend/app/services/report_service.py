@@ -1,13 +1,16 @@
 import os
+
 from datetime import datetime, timezone
 
 from fastapi import HTTPException
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from app.firebase_config import db
+
 from app.services.materialized_vibe_service import (
     safe_rebuild_venue_community_summary,
 )
+
 from app.services.yiyo_logic import (
     count_recent_actions,
     should_auto_flag_report,
@@ -73,6 +76,31 @@ def _now_unix() -> int:
     )
 
 
+def _is_open_flag(
+    data: dict,
+) -> bool:
+    """
+    Flags created before moderation resolution existed
+    do not have an explicit status.
+
+    Treat missing/blank status as open so existing
+    reports are not silently lost from moderation.
+    """
+
+    status = str(
+        data.get(
+            "status",
+            "open",
+        )
+        or "open"
+    ).strip().lower()
+
+    return status in {
+        "",
+        "open",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Contribution rate limiting
 # ---------------------------------------------------------------------------
@@ -104,7 +132,10 @@ def _get_recent_user_report_timestamps(
     timestamps = []
 
     for doc in docs:
-        data = doc.to_dict() or {}
+        data = (
+            doc.to_dict()
+            or {}
+        )
 
         created_at_unix = int(
             data.get(
@@ -305,7 +336,10 @@ def _get_recent_user_flag_timestamps(
     timestamps = []
 
     for doc in docs:
-        data = doc.to_dict() or {}
+        data = (
+            doc.to_dict()
+            or {}
+        )
 
         created_at_unix = int(
             data.get(
@@ -487,14 +521,42 @@ def flag_report_for_moderation(
         )
     )
 
-    if flag_ref.get().exists:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "You have already "
-                "flagged this report"
-            ),
+    existing_flag_snapshot = (
+        flag_ref.get()
+    )
+
+    if existing_flag_snapshot.exists:
+        existing_flag = (
+            existing_flag_snapshot.to_dict()
+            or {}
         )
+
+        existing_status = str(
+            existing_flag.get(
+                "status",
+                "open",
+            )
+            or "open"
+        ).strip().lower()
+
+        if existing_status in {
+            "",
+            "open",
+        }:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "You have already "
+                    "flagged this report"
+                ),
+            )
+
+        # A previously resolved flag should not silently
+        # become a second document. The same deterministic
+        # document can be reopened if the content later
+        # becomes reportable again.
+        #
+        # The user's reporting rate limits still apply.
 
     enforce_flag_rate_limits(
         uid
@@ -521,6 +583,24 @@ def flag_report_for_moderation(
             "details":
                 details,
 
+            "status":
+                "open",
+
+            "resolution":
+                "",
+
+            "reviewed_by_uid":
+                "",
+
+            "reviewed_at":
+                "",
+
+            "reviewed_at_unix":
+                0,
+
+            "moderator_note":
+                "",
+
             "created_at":
                 now.isoformat(),
 
@@ -531,6 +611,11 @@ def flag_report_for_moderation(
         }
     )
 
+    # Fetch all flags for this report rather than limiting
+    # before filtering.
+    #
+    # Resolved historical flags must not count toward the
+    # current automatic moderation threshold.
     flag_docs = (
         db.collection(
             REPORT_FLAGS_COLLECTION
@@ -542,16 +627,21 @@ def flag_report_for_moderation(
                 report_id,
             )
         )
-        .limit(
-            AUTO_FLAG_THRESHOLD
-        )
         .stream()
     )
 
-    flag_count = sum(
-        1
-        for _ in flag_docs
-    )
+    flag_count = 0
+
+    for doc in flag_docs:
+        data = (
+            doc.to_dict()
+            or {}
+        )
+
+        if _is_open_flag(
+            data
+        ):
+            flag_count += 1
 
     new_status = "active"
 
@@ -588,8 +678,8 @@ def flag_report_for_moderation(
 
     # Only a moderation-state change affects Current Vibe.
     #
-    # 1 or 2 flags leave the report active, so there is no reason
-    # to rebuild the venue summary yet.
+    # One or two open flags leave the report active, so
+    # there is no reason to rebuild the venue summary yet.
     if (
         new_status == "flagged"
         and venue_id

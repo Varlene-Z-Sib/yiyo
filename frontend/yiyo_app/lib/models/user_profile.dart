@@ -15,6 +15,11 @@ class UserProfile {
 
   final String? createdAt;
 
+  final String termsVersion;
+  final String privacyVersion;
+  final String? legalAcceptedAt;
+  final bool legalAcceptanceCurrent;
+
   const UserProfile({
     required this.uid,
     required this.email,
@@ -25,6 +30,10 @@ class UserProfile {
     required this.reportCount,
     required this.contributorLevel,
     required this.createdAt,
+    required this.termsVersion,
+    required this.privacyVersion,
+    required this.legalAcceptedAt,
+    required this.legalAcceptanceCurrent,
   });
 
   factory UserProfile.fromJson(
@@ -69,6 +78,22 @@ class UserProfile {
       createdAt:
           json["created_at"]
               ?.toString(),
+
+      termsVersion:
+          (json["terms_version"] ?? "")
+              .toString(),
+
+      privacyVersion:
+          (json["privacy_version"] ?? "")
+              .toString(),
+
+      legalAcceptedAt:
+          json["legal_accepted_at"]
+              ?.toString(),
+
+      legalAcceptanceCurrent:
+          json["legal_acceptance_current"] ==
+              true,
     );
   }
 

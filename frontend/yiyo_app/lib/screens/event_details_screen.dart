@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/event_engagement.dart';
 import '../models/yiyo_event.dart';
 import '../services/api_service.dart';
+import '../widgets/event_report_sheet.dart';
 
 
 class EventDetailsScreen
@@ -282,6 +283,120 @@ class _EventDetailsScreenState
     );
   }
 
+Future<void>
+    _reportEvent() async {
+  final submitted =
+      await showEventReportSheet(
+    context:
+        context,
+    eventId:
+        widget.event.id,
+  );
+
+  if (submitted != true ||
+      !mounted) {
+    return;
+  }
+
+  _showMessage(
+    "Thanks. This event has "
+    "been reported for review.",
+  );
+}
+
+
+Future<void>
+    _blockOrganizer() async {
+  final confirmed =
+      await showDialog<bool>(
+        context:
+            context,
+        builder:
+            (dialogContext) =>
+                AlertDialog(
+          title:
+              const Text(
+            "Block organiser?",
+          ),
+          content:
+              const Text(
+            "You won't see public events "
+            "from this organiser anymore.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(
+                dialogContext,
+              ).pop(
+                false,
+              ),
+              child:
+                  const Text(
+                "Cancel",
+              ),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(
+                dialogContext,
+              ).pop(
+                true,
+              ),
+              child:
+                  const Text(
+                "Block",
+              ),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+
+  if (!confirmed ||
+      !mounted) {
+    return;
+  }
+
+  try {
+    await ApiService
+        .blockEventOrganizer(
+      eventId:
+          widget.event.id,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    _showMessage(
+      "Organiser blocked. "
+      "Their events are now hidden.",
+    );
+
+    Navigator.of(
+      context,
+    ).pop(
+      true,
+    );
+  } on ApiException catch (e) {
+    if (!mounted) {
+      return;
+    }
+
+    _showMessage(
+      e.message,
+    );
+  } catch (_) {
+    if (!mounted) {
+      return;
+    }
+
+    _showMessage(
+      "Couldn't block this organiser.",
+    );
+  }
+}
 
   Future<void> _copyTicketLink() async {
     final ticketUrl =
@@ -469,6 +584,66 @@ class _EventDetailsScreenState
                 FontWeight.w800,
           ),
         ),
+
+        actions: [
+          PopupMenuButton<String>(
+            tooltip:
+                "Event safety options",
+            onSelected:
+                (value) async {
+              switch (value) {
+                case "report":
+                  await _reportEvent();
+                  break;
+
+                case "block":
+                  await _blockOrganizer();
+                  break;
+              }
+            },
+            itemBuilder:
+                (context) =>
+                    const [
+              PopupMenuItem(
+                value:
+                    "report",
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.flag_outlined,
+                      size: 19,
+                    ),
+                    SizedBox(
+                      width: 10,
+                    ),
+                    Text(
+                      "Report event",
+                    ),
+                  ],
+                ),
+              ),
+
+              PopupMenuItem(
+                value:
+                    "block",
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.block_outlined,
+                      size: 19,
+                    ),
+                    SizedBox(
+                      width: 10,
+                    ),
+                    Text(
+                      "Block organiser",
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
 
       body:

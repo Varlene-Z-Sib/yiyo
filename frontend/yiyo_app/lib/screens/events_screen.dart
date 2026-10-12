@@ -9,21 +9,16 @@ import 'event_details_screen.dart';
 import 'my_events_screen.dart';
 import 'manage_events_screen.dart';
 import 'admin_access_screen.dart';
-
+import 'moderation_queue_screen.dart';
 
 class EventsScreen extends StatefulWidget {
-  const EventsScreen({
-    super.key,
-  });
+  const EventsScreen({super.key});
 
   @override
-  State<EventsScreen> createState() =>
-      _EventsScreenState();
+  State<EventsScreen> createState() => _EventsScreenState();
 }
 
-
-class _EventsScreenState
-    extends State<EventsScreen> {
+class _EventsScreenState extends State<EventsScreen> {
   bool _isLoading = true;
 
   String? _error;
@@ -32,18 +27,12 @@ class _EventsScreenState
 
   AppPermissions? _permissions;
 
-
-  bool get _canCreateEvents =>
-      _permissions?.createEvents == true;
+  bool get _canCreateEvents => _permissions?.createEvents == true;
 
   bool get _canManageApprovals =>
-      _permissions?.manageVenues == true ||
-      _permissions?.superAdmin == true;
+      _permissions?.manageVenues == true || _permissions?.superAdmin == true;
 
-  bool get _hasEventTools =>
-      _canCreateEvents ||
-      _canManageApprovals;
-
+  bool get _hasEventTools => _canCreateEvents || _canManageApprovals;
 
   @override
   void initState() {
@@ -53,20 +42,16 @@ class _EventsScreenState
     _loadPermissions();
   }
 
-
   Future<void> _loadPermissions() async {
     try {
-      final permissions =
-          await ApiService
-              .getMyPermissions();
+      final permissions = await ApiService.getMyPermissions();
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _permissions =
-            permissions;
+        _permissions = permissions;
       });
     } catch (_) {
       // Event discovery remains available
@@ -77,12 +62,7 @@ class _EventsScreenState
   Future<void> _openManageEvents() async {
     await Navigator.of(
       context,
-    ).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            const ManageEventsScreen(),
-      ),
-    );
+    ).push(MaterialPageRoute(builder: (_) => const ManageEventsScreen()));
 
     if (!mounted) {
       return;
@@ -91,20 +71,11 @@ class _EventsScreenState
     await _refresh();
   }
 
-
   Future<void> _loadEvents() async {
     try {
-      final events =
-          await ApiService.getEvents(
-        limit: 50,
-      );
+      final events = await ApiService.getEvents(limit: 50);
 
-      events.sort(
-        (a, b) =>
-            a.startsAt.compareTo(
-          b.startsAt,
-        ),
-      );
+      events.sort((a, b) => a.startsAt.compareTo(b.startsAt));
 
       if (!mounted) {
         return;
@@ -130,76 +101,42 @@ class _EventsScreenState
       }
 
       setState(() {
-        _error =
-            "Couldn't load events.";
+        _error = "Couldn't load events.";
         _isLoading = false;
       });
     }
   }
 
-
   Future<void> _refresh() async {
-    await Future.wait([
-      _loadEvents(),
-      _loadPermissions(),
-    ]);
+    await Future.wait([_loadEvents(), _loadPermissions()]);
   }
 
-
   Future<void> _openCreateEvent() async {
-    final event =
-        await Navigator.of(
-      context,
-    ).push<YiyoEvent>(
-      MaterialPageRoute(
-        builder: (_) =>
-            const CreateEventScreen(),
-      ),
+    final event = await Navigator.of(context).push<YiyoEvent>(
+      MaterialPageRoute(builder: (_) => const CreateEventScreen()),
     );
 
-    if (
-        event == null ||
-        !mounted) {
+    if (event == null || !mounted) {
       return;
     }
 
     if (event.isPublished) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(
-        const SnackBar(
-          content:
-              Text(
-            "Event published.",
-          ),
-        ),
-      );
+      ).showSnackBar(const SnackBar(content: Text("Event published.")));
 
       await _refresh();
     } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content:
-              Text(
-            "Event submitted for approval.",
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Event submitted for approval.")),
       );
     }
   }
-
 
   Future<void> _openMyEvents() async {
     await Navigator.of(
       context,
-    ).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            const MyEventsScreen(),
-      ),
-    );
+    ).push(MaterialPageRoute(builder: (_) => const MyEventsScreen()));
 
     if (!mounted) {
       return;
@@ -207,17 +144,11 @@ class _EventsScreenState
 
     await _refresh();
   }
-
 
   Future<void> _openApprovals() async {
     await Navigator.of(
       context,
-    ).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            const EventApprovalsScreen(),
-      ),
-    );
+    ).push(MaterialPageRoute(builder: (_) => const EventApprovalsScreen()));
 
     if (!mounted) {
       return;
@@ -226,20 +157,10 @@ class _EventsScreenState
     await _refresh();
   }
 
-
-  Future<void> _openEvent(
-    YiyoEvent event,
-  ) async {
+  Future<void> _openEvent(YiyoEvent event) async {
     await Navigator.of(
       context,
-    ).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            EventDetailsScreen(
-          event: event,
-        ),
-      ),
-    );
+    ).push(MaterialPageRoute(builder: (_) => EventDetailsScreen(event: event)));
 
     if (!mounted) {
       return;
@@ -250,294 +171,130 @@ class _EventsScreenState
     await _loadEvents();
   }
 
-Future<void>
-    _openAccessManagement() async {
-  await Navigator.of(
-    context,
-  ).push(
-    MaterialPageRoute(
-      builder: (_) =>
-          const AdminAccessScreen(),
-    ),
-  );
+  Future<void> _openModeration() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ModerationQueueScreen()));
 
-  if (!mounted) {
-    return;
+    if (!mounted) {
+      return;
+    }
+
+    await _refresh();
   }
 
-  await _loadPermissions();
-}
+  Future<void> _openAccessManagement() async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const AdminAccessScreen()));
 
-  DateTime _effectiveEnd(
-    YiyoEvent event,
-  ) {
+    if (!mounted) {
+      return;
+    }
+
+    await _loadPermissions();
+  }
+
+  DateTime _effectiveEnd(YiyoEvent event) {
     if (event.endsAt != null) {
-      return event.endsAt!
-          .toLocal();
+      return event.endsAt!.toLocal();
     }
 
-    return event.startsAt
-        .toLocal()
-        .add(
-          const Duration(
-            hours: 8,
-          ),
-        );
+    return event.startsAt.toLocal().add(const Duration(hours: 8));
   }
 
+  bool _isHappeningNow(YiyoEvent event, DateTime now) {
+    final start = event.startsAt.toLocal();
 
-  bool _isHappeningNow(
-    YiyoEvent event,
-    DateTime now,
-  ) {
-    final start =
-        event.startsAt.toLocal();
+    final end = _effectiveEnd(event);
 
-    final end =
-        _effectiveEnd(
-      event,
-    );
-
-    return !now.isBefore(
-          start,
-        ) &&
-        now.isBefore(
-          end,
-        );
+    return !now.isBefore(start) && now.isBefore(end);
   }
 
-
-  bool _isSameDay(
-    DateTime first,
-    DateTime second,
-  ) {
-    return first.year ==
-            second.year &&
-        first.month ==
-            second.month &&
-        first.day ==
-            second.day;
+  bool _isSameDay(DateTime first, DateTime second) {
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day;
   }
 
+  DateTime _weekendStart(DateTime now) {
+    final dayStart = DateTime(now.year, now.month, now.day);
 
-  DateTime _weekendStart(
-    DateTime now,
-  ) {
-    final dayStart =
-        DateTime(
-      now.year,
-      now.month,
-      now.day,
-    );
-
-    if (
-        now.weekday >=
-        DateTime.friday) {
-      return dayStart.subtract(
-        Duration(
-          days:
-              now.weekday -
-              DateTime.friday,
-        ),
-      );
+    if (now.weekday >= DateTime.friday) {
+      return dayStart.subtract(Duration(days: now.weekday - DateTime.friday));
     }
 
-    return dayStart.add(
-      Duration(
-        days:
-            DateTime.friday -
-            now.weekday,
-      ),
-    );
+    return dayStart.add(Duration(days: DateTime.friday - now.weekday));
   }
 
+  bool _isThisWeekend(YiyoEvent event, DateTime now) {
+    final start = event.startsAt.toLocal();
 
-  bool _isThisWeekend(
-    YiyoEvent event,
-    DateTime now,
-  ) {
-    final start =
-        event.startsAt.toLocal();
+    final weekendStart = _weekendStart(now);
 
-    final weekendStart =
-        _weekendStart(
-      now,
-    );
+    final weekendEnd = weekendStart.add(const Duration(days: 3));
 
-    final weekendEnd =
-        weekendStart.add(
-      const Duration(
-        days: 3,
-      ),
-    );
-
-    return !start.isBefore(
-          weekendStart,
-        ) &&
-        start.isBefore(
-          weekendEnd,
-        );
+    return !start.isBefore(weekendStart) && start.isBefore(weekendEnd);
   }
-
 
   List<YiyoEvent> _happeningNow() {
-    final now =
-        DateTime.now();
+    final now = DateTime.now();
 
-    return _events
-        .where(
-          (event) =>
-              _isHappeningNow(
-            event,
-            now,
-          ),
-        )
-        .toList();
+    return _events.where((event) => _isHappeningNow(event, now)).toList();
   }
-
 
   List<YiyoEvent> _tonight() {
-    final now =
-        DateTime.now();
+    final now = DateTime.now();
 
-    return _events
-        .where(
-          (event) {
-            final start =
-                event.startsAt
-                    .toLocal();
+    return _events.where((event) {
+      final start = event.startsAt.toLocal();
 
-            return !_isHappeningNow(
-                  event,
-                  now,
-                ) &&
-                start.isAfter(
-                  now,
-                ) &&
-                _isSameDay(
-                  start,
-                  now,
-                );
-          },
-        )
-        .toList();
+      return !_isHappeningNow(event, now) &&
+          start.isAfter(now) &&
+          _isSameDay(start, now);
+    }).toList();
   }
-
 
   List<YiyoEvent> _thisWeekend() {
-    final now =
-        DateTime.now();
+    final now = DateTime.now();
 
-    return _events
-        .where(
-          (event) {
-            final start =
-                event.startsAt
-                    .toLocal();
+    return _events.where((event) {
+      final start = event.startsAt.toLocal();
 
-            return _effectiveEnd(
-                  event,
-                ).isAfter(
-                  now,
-                ) &&
-                !_isHappeningNow(
-                  event,
-                  now,
-                ) &&
-                !_isSameDay(
-                  start,
-                  now,
-                ) &&
-                _isThisWeekend(
-                  event,
-                  now,
-                );
-          },
-        )
-        .toList();
+      return _effectiveEnd(event).isAfter(now) &&
+          !_isHappeningNow(event, now) &&
+          !_isSameDay(start, now) &&
+          _isThisWeekend(event, now);
+    }).toList();
   }
-
 
   List<YiyoEvent> _later() {
-    final now =
-        DateTime.now();
+    final now = DateTime.now();
 
-    return _events
-        .where(
-          (event) {
-            final start =
-                event.startsAt
-                    .toLocal();
+    return _events.where((event) {
+      final start = event.startsAt.toLocal();
 
-            return _effectiveEnd(
-                  event,
-                ).isAfter(
-                  now,
-                ) &&
-                !_isHappeningNow(
-                  event,
-                  now,
-                ) &&
-                !(
-                  start.isAfter(
-                        now,
-                      ) &&
-                      _isSameDay(
-                        start,
-                        now,
-                      )
-                ) &&
-                !_isThisWeekend(
-                  event,
-                  now,
-                );
-          },
-        )
-        .toList();
+      return _effectiveEnd(event).isAfter(now) &&
+          !_isHappeningNow(event, now) &&
+          !(start.isAfter(now) && _isSameDay(start, now)) &&
+          !_isThisWeekend(event, now);
+    }).toList();
   }
 
+  String _eventTime(YiyoEvent event) {
+    final local = event.startsAt.toLocal();
 
-  String _eventTime(
-    YiyoEvent event,
-  ) {
-    final local =
-        event.startsAt.toLocal();
+    final hour = local.hour.toString().padLeft(2, "0");
 
-    final hour =
-        local.hour
-            .toString()
-            .padLeft(
-              2,
-              "0",
-            );
-
-    final minute =
-        local.minute
-            .toString()
-            .padLeft(
-              2,
-              "0",
-            );
+    final minute = local.minute.toString().padLeft(2, "0");
 
     return "$hour:$minute";
   }
 
+  String _eventDate(YiyoEvent event) {
+    final local = event.startsAt.toLocal();
 
-  String _eventDate(
-    YiyoEvent event,
-  ) {
-    final local =
-        event.startsAt.toLocal();
-
-    const weekdays = [
-      "Mon",
-      "Tue",
-      "Wed",
-      "Thu",
-      "Fri",
-      "Sat",
-      "Sun",
-    ];
+    const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
     const months = [
       "Jan",
@@ -559,10 +316,7 @@ Future<void>
         "${months[local.month - 1]}";
   }
 
-
-  String _eventMonth(
-    YiyoEvent event,
-  ) {
+  String _eventMonth(YiyoEvent event) {
     const months = [
       "JAN",
       "FEB",
@@ -578,125 +332,67 @@ Future<void>
       "DEC",
     ];
 
-    final local =
-        event.startsAt.toLocal();
+    final local = event.startsAt.toLocal();
 
-    return months[
-      local.month - 1
-    ];
+    return months[local.month - 1];
   }
 
-
-  String _eventDay(
-    YiyoEvent event,
-  ) {
-    return event.startsAt
-        .toLocal()
-        .day
-        .toString();
+  String _eventDay(YiyoEvent event) {
+    return event.startsAt.toLocal().day.toString();
   }
-
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          const Color(
-        0xFF0B0B0C,
-      ),
+      backgroundColor: const Color(0xFF0B0B0C),
 
-      appBar:
-          AppBar(
-        backgroundColor:
-            const Color(
-          0xFF0B0B0C,
-        ),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0B0B0C),
 
-        surfaceTintColor:
-            Colors.transparent,
+        surfaceTintColor: Colors.transparent,
 
-        title:
-            const Text(
+        title: const Text(
           "Events",
-          style:
-              TextStyle(
-            fontWeight:
-                FontWeight.w900,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w900),
         ),
       ),
 
-      body:
-          _buildBody(),
+      body: _buildBody(),
     );
   }
 
-
   Widget _buildBody() {
-    if (
-        _isLoading &&
-        _events.isEmpty) {
+    if (_isLoading && _events.isEmpty) {
       return ListView(
-        physics:
-            const AlwaysScrollableScrollPhysics(),
+        physics: const AlwaysScrollableScrollPhysics(),
 
-        padding:
-            const EdgeInsets.all(
-          24,
-        ),
+        padding: const EdgeInsets.all(24),
 
         children: [
-          const SizedBox(
-            height: 130,
-          ),
+          const SizedBox(height: 130),
 
           Center(
-            child:
-                Column(
+            child: Column(
               children: [
                 Container(
                   width: 62,
                   height: 62,
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        Colors.white
-                            .withValues(
-                      alpha:
-                          0.06,
-                    ),
-                    shape:
-                        BoxShape.circle,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    shape: BoxShape.circle,
                   ),
-                  child:
-                      const Icon(
-                    Icons
-                        .celebration_outlined,
-                    size: 30,
-                  ),
+                  child: const Icon(Icons.celebration_outlined, size: 30),
                 ),
 
-                const SizedBox(
-                  height: 20,
-                ),
+                const SizedBox(height: 20),
 
                 const CircularProgressIndicator(),
 
-                const SizedBox(
-                  height: 16,
-                ),
+                const SizedBox(height: 16),
 
                 Text(
                   "Finding what's happening...",
-                  style:
-                      TextStyle(
-                    color:
-                        Colors.grey[
-                      500
-                    ],
-                  ),
+                  style: TextStyle(color: Colors.grey[500]),
                 ),
               ],
             ),
@@ -705,112 +401,56 @@ Future<void>
       );
     }
 
-
     if (_error != null) {
       return RefreshIndicator(
-        onRefresh:
-            _refresh,
+        onRefresh: _refresh,
 
-        child:
-            ListView(
-          physics:
-              const AlwaysScrollableScrollPhysics(),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
 
-          padding:
-              const EdgeInsets.all(
-            24,
-          ),
+          padding: const EdgeInsets.all(24),
 
           children: [
-            const SizedBox(
-              height: 100,
-            ),
+            const SizedBox(height: 100),
 
             Container(
-              padding:
-                  const EdgeInsets.all(
-                24,
+              padding: const EdgeInsets.all(24),
+
+              decoration: BoxDecoration(
+                color: const Color(0xFF151517),
+
+                borderRadius: BorderRadius.circular(22),
               ),
 
-              decoration:
-                  BoxDecoration(
-                color:
-                    const Color(
-                  0xFF151517,
-                ),
-
-                borderRadius:
-                    BorderRadius.circular(
-                  22,
-                ),
-              ),
-
-              child:
-                  Column(
+              child: Column(
                 children: [
-                  const Icon(
-                    Icons
-                        .event_busy_outlined,
-                    size: 46,
-                  ),
+                  const Icon(Icons.event_busy_outlined, size: 46),
 
-                  const SizedBox(
-                    height: 16,
-                  ),
+                  const SizedBox(height: 16),
 
                   const Text(
                     "Events aren't loading",
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        TextStyle(
-                      fontSize:
-                          20,
-                      fontWeight:
-                          FontWeight.w800,
-                    ),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                   ),
 
-                  const SizedBox(
-                    height: 8,
-                  ),
+                  const SizedBox(height: 8),
 
                   Text(
                     _error!,
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.grey[
-                        500
-                      ],
-                      height:
-                          1.4,
-                    ),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey[500], height: 1.4),
                   ),
 
-                  const SizedBox(
-                    height: 20,
-                  ),
+                  const SizedBox(height: 20),
 
                   SizedBox(
-                    width:
-                        double.infinity,
-                    height:
-                        50,
-                    child:
-                        FilledButton.icon(
-                      onPressed:
-                          _refresh,
-                      icon:
-                          const Icon(
-                        Icons.refresh,
-                      ),
-                      label:
-                          const Text(
-                        "Try again",
-                      ),
+                    width: double.infinity,
+                    height: 50,
+                    child: FilledButton.icon(
+                      onPressed: _refresh,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text("Try again"),
                     ),
                   ),
                 ],
@@ -821,144 +461,74 @@ Future<void>
       );
     }
 
-
     if (_events.isEmpty) {
       return RefreshIndicator(
-        onRefresh:
-            _refresh,
+        onRefresh: _refresh,
 
-        child:
-            ListView(
-          physics:
-              const AlwaysScrollableScrollPhysics(),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
 
-          padding:
-              const EdgeInsets.fromLTRB(
-            20,
-            24,
-            20,
-            32,
-          ),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
 
           children: [
             _buildHeader(),
 
             if (_hasEventTools) ...[
-              const SizedBox(
-                height: 22,
-              ),
+              const SizedBox(height: 22),
 
               _buildEventTools(),
             ],
 
-            const SizedBox(
-              height: 70,
-            ),
+            const SizedBox(height: 70),
 
             Container(
-              padding:
-                  const EdgeInsets.fromLTRB(
-                24,
-                32,
-                24,
-                32,
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+
+              decoration: BoxDecoration(
+                color: const Color(0xFF151517),
+
+                borderRadius: BorderRadius.circular(24),
               ),
 
-              decoration:
-                  BoxDecoration(
-                color:
-                    const Color(
-                  0xFF151517,
-                ),
-
-                borderRadius:
-                    BorderRadius.circular(
-                  24,
-                ),
-              ),
-
-              child:
-                  Column(
+              child: Column(
                 children: [
                   Container(
                     width: 68,
                     height: 68,
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          Colors.white
-                              .withValues(
-                        alpha:
-                            0.07,
-                      ),
-                      shape:
-                          BoxShape.circle,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.07),
+                      shape: BoxShape.circle,
                     ),
-                    child:
-                        const Icon(
-                      Icons
-                          .celebration_outlined,
-                      size: 34,
-                    ),
+                    child: const Icon(Icons.celebration_outlined, size: 34),
                   ),
 
-                  const SizedBox(
-                    height: 18,
-                  ),
+                  const SizedBox(height: 18),
 
                   const Text(
                     "No upcoming events yet",
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        TextStyle(
-                      fontSize: 21,
-                      fontWeight:
-                          FontWeight.w900,
-                    ),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
                   ),
 
-                  const SizedBox(
-                    height: 8,
-                  ),
+                  const SizedBox(height: 8),
 
                   Text(
                     "Events from YIYO venues "
                     "and organisers will appear here.",
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.grey[
-                        500
-                      ],
-                      height: 1.45,
-                    ),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey[500], height: 1.45),
                   ),
 
                   if (_canCreateEvents) ...[
-                    const SizedBox(
-                      height: 22,
-                    ),
+                    const SizedBox(height: 22),
 
                     SizedBox(
-                      width:
-                          double.infinity,
-                      height:
-                          50,
-                      child:
-                          FilledButton.icon(
-                        onPressed:
-                            _openCreateEvent,
-                        icon:
-                            const Icon(
-                          Icons.add,
-                        ),
-                        label:
-                            const Text(
-                          "Create an event",
-                        ),
+                      width: double.infinity,
+                      height: 50,
+                      child: FilledButton.icon(
+                        onPressed: _openCreateEvent,
+                        icon: const Icon(Icons.add),
+                        label: const Text("Create an event"),
                       ),
                     ),
                   ],
@@ -970,294 +540,182 @@ Future<void>
       );
     }
 
+    final happeningNow = _happeningNow();
 
-    final happeningNow =
-        _happeningNow();
+    final tonight = _tonight();
 
-    final tonight =
-        _tonight();
+    final weekend = _thisWeekend();
 
-    final weekend =
-        _thisWeekend();
-
-    final later =
-        _later();
-
+    final later = _later();
 
     return RefreshIndicator(
-      onRefresh:
-          _refresh,
+      onRefresh: _refresh,
 
-      child:
-          ListView(
-        physics:
-            const AlwaysScrollableScrollPhysics(),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
 
-        padding:
-            const EdgeInsets.fromLTRB(
-          16,
-          12,
-          16,
-          34,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 34),
 
         children: [
           _buildHeader(),
 
           if (_hasEventTools) ...[
-            const SizedBox(
-              height: 20,
-            ),
+            const SizedBox(height: 20),
 
             _buildEventTools(),
           ],
 
-          const SizedBox(
-            height: 28,
-          ),
+          const SizedBox(height: 28),
 
           if (happeningNow.isNotEmpty)
             _EventSection(
-              title:
-                  "Happening now",
+              title: "Happening now",
 
-              subtitle:
-                  "Live right now",
+              subtitle: "Live right now",
 
-              events:
-                  happeningNow,
+              events: happeningNow,
 
-              eventTime:
-                  _eventTime,
+              eventTime: _eventTime,
 
-              eventDate:
-                  _eventDate,
+              eventDate: _eventDate,
 
-              eventMonth:
-                  _eventMonth,
+              eventMonth: _eventMonth,
 
-              eventDay:
-                  _eventDay,
+              eventDay: _eventDay,
 
-              onOpen:
-                  _openEvent,
+              onOpen: _openEvent,
 
-              live:
-                  true,
+              live: true,
             ),
 
           if (tonight.isNotEmpty)
             _EventSection(
-              title:
-                  "Tonight",
+              title: "Tonight",
 
-              subtitle:
-                  "Your moves for later",
+              subtitle: "Your moves for later",
 
-              events:
-                  tonight,
+              events: tonight,
 
-              eventTime:
-                  _eventTime,
+              eventTime: _eventTime,
 
-              eventDate:
-                  _eventDate,
+              eventDate: _eventDate,
 
-              eventMonth:
-                  _eventMonth,
+              eventMonth: _eventMonth,
 
-              eventDay:
-                  _eventDay,
+              eventDay: _eventDay,
 
-              onOpen:
-                  _openEvent,
+              onOpen: _openEvent,
             ),
 
           if (weekend.isNotEmpty)
             _EventSection(
-              title:
-                  "This weekend",
+              title: "This weekend",
 
-              subtitle:
-                  "Plan the weekend",
+              subtitle: "Plan the weekend",
 
-              events:
-                  weekend,
+              events: weekend,
 
-              eventTime:
-                  _eventTime,
+              eventTime: _eventTime,
 
-              eventDate:
-                  _eventDate,
+              eventDate: _eventDate,
 
-              eventMonth:
-                  _eventMonth,
+              eventMonth: _eventMonth,
 
-              eventDay:
-                  _eventDay,
+              eventDay: _eventDay,
 
-              onOpen:
-                  _openEvent,
+              onOpen: _openEvent,
             ),
 
           if (later.isNotEmpty)
             _EventSection(
-              title:
-                  "Coming up",
+              title: "Coming up",
 
-              subtitle:
-                  "More nights worth knowing about",
+              subtitle: "More nights worth knowing about",
 
-              events:
-                  later,
+              events: later,
 
-              eventTime:
-                  _eventTime,
+              eventTime: _eventTime,
 
-              eventDate:
-                  _eventDate,
+              eventDate: _eventDate,
 
-              eventMonth:
-                  _eventMonth,
+              eventMonth: _eventMonth,
 
-              eventDay:
-                  _eventDay,
+              eventDay: _eventDay,
 
-              onOpen:
-                  _openEvent,
+              onOpen: _openEvent,
             ),
         ],
       ),
     );
   }
 
-
   Widget _buildHeader() {
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.end,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             const Expanded(
-              child:
-                  Text(
+              child: Text(
                 "What's happening?",
-                style:
-                    TextStyle(
+                style: TextStyle(
                   fontSize: 28,
-                  fontWeight:
-                      FontWeight.w900,
-                  letterSpacing:
-                      -0.9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.9,
                 ),
               ),
             ),
 
             if (_events.isNotEmpty)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(
+                padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 6,
                 ),
-                decoration:
-                    BoxDecoration(
-                  color:
-                      Colors.white
-                          .withValues(
-                    alpha:
-                        0.08,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(
-                    20,
-                  ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child:
-                    Text(
+                child: Text(
                   "${_events.length}",
-                  style:
-                      const TextStyle(
-                    fontWeight:
-                        FontWeight.w800,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
           ],
         ),
 
-        const SizedBox(
-          height: 6,
-        ),
+        const SizedBox(height: 6),
 
         Text(
           "Find your next move.",
-          style:
-              TextStyle(
-            color:
-                Colors.grey[
-              500
-            ],
-            fontSize: 15,
-          ),
+          style: TextStyle(color: Colors.grey[500], fontSize: 15),
         ),
       ],
     );
   }
 
-
   Widget _buildEventTools() {
     return Container(
-      padding:
-          const EdgeInsets.all(
-        14,
+      padding: const EdgeInsets.all(14),
+
+      decoration: BoxDecoration(
+        color: const Color(0xFF151517),
+
+        borderRadius: BorderRadius.circular(20),
+
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),
 
-      decoration:
-          BoxDecoration(
-        color:
-            const Color(
-          0xFF151517,
-        ),
-
-        borderRadius:
-            BorderRadius.circular(
-          20,
-        ),
-
-        border:
-            Border.all(
-          color:
-              Colors.white
-                  .withValues(
-            alpha:
-                0.06,
-          ),
-        ),
-      ),
-
-      child:
-          Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _canManageApprovals
-                ? "Event tools"
-                : "Your events",
-            style:
-                const TextStyle(
-              fontWeight:
-                  FontWeight.w800,
-            ),
+            _canManageApprovals ? "Event tools" : "Your events",
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
 
-          const SizedBox(
-            height: 12,
-          ),
+          const SizedBox(height: 12),
 
           Wrap(
             spacing: 8,
@@ -1297,6 +755,13 @@ Future<void>
 
               if (_permissions?.superAdmin == true)
                 OutlinedButton.icon(
+                  onPressed: _openModeration,
+                  icon: const Icon(Icons.shield_outlined),
+                  label: const Text("Moderation"),
+                ),
+
+              if (_permissions?.superAdmin == true)
+                OutlinedButton.icon(
                   onPressed: _openAccessManagement,
                   icon: const Icon(Icons.manage_accounts_outlined),
                   label: const Text("Access"),
@@ -1309,35 +774,23 @@ Future<void>
   }
 }
 
-
-class _EventSection
-    extends StatelessWidget {
+class _EventSection extends StatelessWidget {
   final String title;
   final String subtitle;
 
   final List<YiyoEvent> events;
 
-  final String Function(
-    YiyoEvent event,
-  ) eventTime;
+  final String Function(YiyoEvent event) eventTime;
 
-  final String Function(
-    YiyoEvent event,
-  ) eventDate;
+  final String Function(YiyoEvent event) eventDate;
 
-  final String Function(
-    YiyoEvent event,
-  ) eventMonth;
+  final String Function(YiyoEvent event) eventMonth;
 
-  final String Function(
-    YiyoEvent event,
-  ) eventDay;
+  final String Function(YiyoEvent event) eventDay;
 
-  final ValueChanged<YiyoEvent>
-      onOpen;
+  final ValueChanged<YiyoEvent> onOpen;
 
   final bool live;
-
 
   const _EventSection({
     required this.title,
@@ -1351,58 +804,35 @@ class _EventSection
     this.live = false,
   });
 
-
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Padding(
-      padding:
-          const EdgeInsets.only(
-        bottom: 30,
-      ),
+      padding: const EdgeInsets.only(bottom: 30),
 
-      child:
-          Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
-                child:
-                    Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style:
-                          const TextStyle(
+                      style: const TextStyle(
                         fontSize: 22,
-                        fontWeight:
-                            FontWeight.w900,
-                        letterSpacing:
-                            -0.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
                       ),
                     ),
 
-                    const SizedBox(
-                      height: 3,
-                    ),
+                    const SizedBox(height: 3),
 
                     Text(
                       subtitle,
-                      style:
-                          TextStyle(
-                        color:
-                            Colors.grey[
-                          500
-                        ],
-                        fontSize: 13,
-                      ),
+                      style: TextStyle(color: Colors.grey[500], fontSize: 13),
                     ),
                   ],
                 ),
@@ -1410,63 +840,34 @@ class _EventSection
 
               Text(
                 "${events.length}",
-                style:
-                    TextStyle(
-                  color:
-                      Colors.grey[
-                    500
-                  ],
-                  fontWeight:
-                      FontWeight.w700,
+                style: TextStyle(
+                  color: Colors.grey[500],
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(
-            height: 14,
-          ),
+          const SizedBox(height: 14),
 
           ...events.map(
-            (event) =>
-                Padding(
-              padding:
-                  const EdgeInsets.only(
-                bottom: 12,
-              ),
+            (event) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
 
-              child:
-                  _EventCard(
-                event:
-                    event,
+              child: _EventCard(
+                event: event,
 
-                date:
-                    eventDate(
-                  event,
-                ),
+                date: eventDate(event),
 
-                time:
-                    eventTime(
-                  event,
-                ),
+                time: eventTime(event),
 
-                month:
-                    eventMonth(
-                  event,
-                ),
+                month: eventMonth(event),
 
-                day:
-                    eventDay(
-                  event,
-                ),
+                day: eventDay(event),
 
-                live:
-                    live,
+                live: live,
 
-                onTap: () =>
-                    onOpen(
-                  event,
-                ),
+                onTap: () => onOpen(event),
               ),
             ),
           ),
@@ -1476,9 +877,7 @@ class _EventSection
   }
 }
 
-
-class _EventCard
-    extends StatelessWidget {
+class _EventCard extends StatelessWidget {
   final YiyoEvent event;
 
   final String date;
@@ -1490,7 +889,6 @@ class _EventCard
 
   final VoidCallback onTap;
 
-
   const _EventCard({
     required this.event,
     required this.date,
@@ -1501,336 +899,194 @@ class _EventCard
     this.live = false,
   });
 
-
   bool get _hasPoster =>
-      event.posterUrl != null &&
-      event.posterUrl!
-          .trim()
-          .isNotEmpty;
-
+      event.posterUrl != null && event.posterUrl!.trim().isNotEmpty;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Container(
-      decoration:
-          BoxDecoration(
-        color:
-            const Color(
-          0xFF151517,
-        ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151517),
 
-        borderRadius:
-            BorderRadius.circular(
-          22,
-        ),
+        borderRadius: BorderRadius.circular(22),
 
-        border:
-            Border.all(
-          color:
-              live
-                  ? Colors.red
-                      .withValues(
-                      alpha: 0.32,
-                    )
-                  : Colors.white
-                      .withValues(
-                      alpha: 0.06,
-                    ),
+        border: Border.all(
+          color: live
+              ? Colors.red.withValues(alpha: 0.32)
+              : Colors.white.withValues(alpha: 0.06),
         ),
       ),
 
-      clipBehavior:
-          Clip.antiAlias,
+      clipBehavior: Clip.antiAlias,
 
-      child:
-          Material(
-        color:
-            Colors.transparent,
+      child: Material(
+        color: Colors.transparent,
 
-        child:
-            InkWell(
-          onTap:
-              onTap,
+        child: InkWell(
+          onTap: onTap,
 
-          child:
-              Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (_hasPoster)
                 SizedBox(
                   height: 142,
-                  width:
-                      double.infinity,
-                  child:
-                      Image.network(
+                  width: double.infinity,
+                  child: Image.network(
                     event.posterUrl!,
-                    fit:
-                        BoxFit.cover,
+                    fit: BoxFit.cover,
 
-                    errorBuilder:
-                        (
-                      context,
-                      error,
-                      stackTrace,
-                    ) {
-                      return _EventVisualFallback(
-                        event:
-                            event,
-                      );
+                    errorBuilder: (context, error, stackTrace) {
+                      return _EventVisualFallback(event: event);
                     },
                   ),
                 ),
 
               Padding(
-                padding:
-                    const EdgeInsets.all(
-                  15,
-                ),
+                padding: const EdgeInsets.all(15),
 
-                child:
-                    Row(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _DateBadge(
-                      month:
-                          month,
-                      day:
-                          day,
-                      time:
-                          time,
-                      live:
-                          live,
-                    ),
+                    _DateBadge(month: month, day: day, time: time, live: live),
 
-                    const SizedBox(
-                      width: 14,
-                    ),
+                    const SizedBox(width: 14),
 
                     Expanded(
-                      child:
-                          Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if (live) ...[
                             Container(
-                              padding:
-                                  const EdgeInsets.symmetric(
+                              padding: const EdgeInsets.symmetric(
                                 horizontal: 9,
                                 vertical: 4,
                               ),
-                              decoration:
-                                  BoxDecoration(
-                                color:
-                                    Colors.red
-                                        .withValues(
-                                  alpha: 0.14,
-                                ),
-                                borderRadius:
-                                    BorderRadius.circular(
-                                  20,
-                                ),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(20),
                               ),
-                              child:
-                                  const Text(
+                              child: const Text(
                                 "LIVE NOW",
-                                style:
-                                    TextStyle(
-                                  color:
-                                      Colors.redAccent,
+                                style: TextStyle(
+                                  color: Colors.redAccent,
                                   fontSize: 10,
-                                  fontWeight:
-                                      FontWeight.w900,
-                                  letterSpacing:
-                                      0.4,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.4,
                                 ),
                               ),
                             ),
 
-                            const SizedBox(
-                              height: 8,
-                            ),
+                            const SizedBox(height: 8),
                           ],
 
                           Text(
                             event.title,
                             maxLines: 2,
-                            overflow:
-                                TextOverflow
-                                    .ellipsis,
-                            style:
-                                const TextStyle(
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
                               fontSize: 19,
-                              fontWeight:
-                                  FontWeight.w900,
-                              letterSpacing:
-                                  -0.3,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.3,
                               height: 1.1,
                             ),
                           ),
 
-                          const SizedBox(
-                            height: 7,
-                          ),
+                          const SizedBox(height: 7),
 
                           Row(
                             children: [
                               Icon(
-                                Icons
-                                    .location_on_outlined,
+                                Icons.location_on_outlined,
                                 size: 16,
-                                color:
-                                    Colors.grey[
-                                  400
-                                ],
+                                color: Colors.grey[400],
                               ),
 
-                              const SizedBox(
-                                width: 5,
-                              ),
+                              const SizedBox(width: 5),
 
                               Expanded(
-                                child:
-                                    Text(
-                                  event
-                                      .venueName,
+                                child: Text(
+                                  event.venueName,
                                   maxLines: 1,
-                                  overflow:
-                                      TextOverflow
-                                          .ellipsis,
-                                  style:
-                                      TextStyle(
-                                    color:
-                                        Colors.grey[
-                                      300
-                                    ],
-                                    fontWeight:
-                                        FontWeight.w700,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.grey[300],
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ),
                             ],
                           ),
 
-                          const SizedBox(
-                            height: 5,
-                          ),
+                          const SizedBox(height: 5),
 
                           Text(
                             "$date · $time",
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.grey[
-                                500
-                              ],
+                            style: TextStyle(
+                              color: Colors.grey[500],
                               fontSize: 13,
                             ),
                           ),
 
-                          if (event.tags
-                              .isNotEmpty) ...[
-                            const SizedBox(
-                              height: 10,
-                            ),
+                          if (event.tags.isNotEmpty) ...[
+                            const SizedBox(height: 10),
 
                             Wrap(
                               spacing: 6,
                               runSpacing: 6,
-                              children:
-                                  event.tags
-                                      .take(
-                                        2,
-                                      )
-                                      .map(
-                                        (tag) =>
-                                            Container(
-                                          padding:
-                                              const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration:
-                                              BoxDecoration(
-                                            color:
-                                                Colors.white
-                                                    .withValues(
-                                              alpha: 0.06,
-                                            ),
-                                            borderRadius:
-                                                BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                          child:
-                                              Text(
-                                            tag,
-                                            style:
-                                                TextStyle(
-                                              color:
-                                                  Colors.grey[
-                                                300
-                                              ],
-                                              fontSize: 11,
-                                              fontWeight:
-                                                  FontWeight.w600,
-                                            ),
-                                          ),
+                              children: event.tags
+                                  .take(2)
+                                  .map(
+                                    (tag) => Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.06,
                                         ),
-                                      )
-                                      .toList(),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        tag,
+                                        style: TextStyle(
+                                          color: Colors.grey[300],
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
                             ),
                           ],
 
-                          const SizedBox(
-                            height: 13,
-                          ),
+                          const SizedBox(height: 13),
 
                           Row(
                             children: [
                               _EngagementCount(
-                                icon:
-                                    Icons
-                                        .local_fire_department,
-                                value:
-                                    event
-                                        .hypeCount,
-                                label:
-                                    "Hype",
-                                color:
-                                    Colors.deepOrangeAccent,
+                                icon: Icons.local_fire_department,
+                                value: event.hypeCount,
+                                label: "Hype",
+                                color: Colors.deepOrangeAccent,
                               ),
 
-                              const SizedBox(
-                                width: 15,
-                              ),
+                              const SizedBox(width: 15),
 
                               _EngagementCount(
-                                icon:
-                                    Icons
-                                        .check_circle,
-                                value:
-                                    event
-                                        .goingCount,
-                                label:
-                                    "Going",
-                                color:
-                                    Colors.greenAccent,
+                                icon: Icons.check_circle,
+                                value: event.goingCount,
+                                label: "Going",
+                                color: Colors.greenAccent,
                               ),
 
                               const Spacer(),
 
                               Icon(
-                                Icons
-                                    .chevron_right,
-                                color:
-                                    Colors.grey[
-                                  500
-                                ],
+                                Icons.chevron_right,
+                                color: Colors.grey[500],
                               ),
                             ],
                           ),
@@ -1848,14 +1104,11 @@ class _EventCard
   }
 }
 
-
-class _DateBadge
-    extends StatelessWidget {
+class _DateBadge extends StatelessWidget {
   final String month;
   final String day;
   final String time;
   final bool live;
-
 
   const _DateBadge({
     required this.month,
@@ -1864,91 +1117,51 @@ class _DateBadge
     required this.live,
   });
 
-
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Container(
       width: 62,
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 10,
-        horizontal: 6,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+
+      decoration: BoxDecoration(
+        color: live
+            ? Colors.red.withValues(alpha: 0.13)
+            : Colors.white.withValues(alpha: 0.07),
+
+        borderRadius: BorderRadius.circular(16),
       ),
 
-      decoration:
-          BoxDecoration(
-        color:
-            live
-                ? Colors.red
-                    .withValues(
-                    alpha: 0.13,
-                  )
-                : Colors.white
-                    .withValues(
-                    alpha: 0.07,
-                  ),
-
-        borderRadius:
-            BorderRadius.circular(
-          16,
-        ),
-      ),
-
-      child:
-          Column(
+      child: Column(
         children: [
           Text(
-            live
-                ? "LIVE"
-                : month,
-            style:
-                TextStyle(
-              color:
-                  live
-                      ? Colors.redAccent
-                      : Colors.grey[
-                          400
-                        ],
+            live ? "LIVE" : month,
+            style: TextStyle(
+              color: live ? Colors.redAccent : Colors.grey[400],
               fontSize: 10,
-              fontWeight:
-                  FontWeight.w900,
-              letterSpacing:
-                  0.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
             ),
           ),
 
-          const SizedBox(
-            height: 3,
-          ),
+          const SizedBox(height: 3),
 
           Text(
             day,
-            style:
-                const TextStyle(
+            style: const TextStyle(
               fontSize: 25,
-              fontWeight:
-                  FontWeight.w900,
+              fontWeight: FontWeight.w900,
               height: 1,
             ),
           ),
 
-          const SizedBox(
-            height: 7,
-          ),
+          const SizedBox(height: 7),
 
           Text(
             time,
-            style:
-                TextStyle(
-              color:
-                  Colors.grey[
-                500
-              ],
+            style: TextStyle(
+              color: Colors.grey[500],
               fontSize: 11,
-              fontWeight:
-                  FontWeight.w700,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -1957,14 +1170,11 @@ class _DateBadge
   }
 }
 
-
-class _EngagementCount
-    extends StatelessWidget {
+class _EngagementCount extends StatelessWidget {
   final IconData icon;
   final int value;
   final String label;
   final Color color;
-
 
   const _EngagementCount({
     required this.icon,
@@ -1973,115 +1183,58 @@ class _EngagementCount
     required this.color,
   });
 
-
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Row(
-      mainAxisSize:
-          MainAxisSize.min,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          icon,
-          size: 17,
-          color: color,
-        ),
+        Icon(icon, size: 17, color: color),
 
-        const SizedBox(
-          width: 4,
-        ),
+        const SizedBox(width: 4),
 
         Text(
           "$value $label",
-          style:
-              const TextStyle(
-            fontSize: 12,
-            fontWeight:
-                FontWeight.w700,
-          ),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
         ),
       ],
     );
   }
 }
 
-
-class _EventVisualFallback
-    extends StatelessWidget {
+class _EventVisualFallback extends StatelessWidget {
   final YiyoEvent event;
 
-
-  const _EventVisualFallback({
-    required this.event,
-  });
-
+  const _EventVisualFallback({required this.event});
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Container(
-      decoration:
-          const BoxDecoration(
-        gradient:
-            LinearGradient(
-          begin:
-              Alignment.topLeft,
-          end:
-              Alignment.bottomRight,
-          colors: [
-            Color(
-              0xFF31151D,
-            ),
-            Color(
-              0xFF171217,
-            ),
-            Color(
-              0xFF0B0B0C,
-            ),
-          ],
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF31151D), Color(0xFF171217), Color(0xFF0B0B0C)],
         ),
       ),
 
-      alignment:
-          Alignment.center,
+      alignment: Alignment.center,
 
-      padding:
-          const EdgeInsets.all(
-        18,
-      ),
+      padding: const EdgeInsets.all(18),
 
-      child:
-          Row(
-        mainAxisAlignment:
-            MainAxisAlignment.center,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons
-                .celebration_outlined,
-            size: 34,
-          ),
+          const Icon(Icons.celebration_outlined, size: 34),
 
-          const SizedBox(
-            width: 12,
-          ),
+          const SizedBox(width: 12),
 
           Flexible(
-            child:
-                Text(
+            child: Text(
               event.title,
               maxLines: 2,
-              overflow:
-                  TextOverflow.ellipsis,
-              textAlign:
-                  TextAlign.center,
-              style:
-                  const TextStyle(
-                fontSize: 17,
-                fontWeight:
-                    FontWeight.w800,
-              ),
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
             ),
           ),
         ],
