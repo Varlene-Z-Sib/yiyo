@@ -49,7 +49,7 @@ class LegalContent {
         'Event information submitted by authorised promoters or venue managers, including event descriptions and related information.',
         'Your Hype and Going interactions with events.',
         'Role and access information such as promoter permissions, venue-manager permissions and assigned venues.',
-        'Moderation information such as reports or flags submitted about community content.',
+        'Moderation and safety information such as reports, flags and account-blocking preferences used to hide content from accounts you choose to block',
         'Unfinished event and vibe-report drafts that may be stored locally on your device.',
       ],
     ),
@@ -126,6 +126,7 @@ class LegalContent {
       paragraphs: [
         'You can permanently delete your YIYO account from the Profile section of the app.',
         'When an account is deleted, YIYO deletes the account profile and Firebase authentication account, releases the reserved username, removes applicable role memberships and removes the user\'s event reactions.',
+        'Account-blocking relationships involving the deleted account are also removed.',
         'Community vibe reports may remain after account deletion in anonymised form so that aggregated venue information and community history are not unnecessarily corrupted. Direct account identifiers associated with those retained reports are removed.',
         'Moderation flags may also be retained in anonymised form where reasonably necessary to preserve moderation evidence.',
         'Published event history may remain after the organiser deletes an account, but identifying organiser account information is removed. Pending events belonging to a deleted organiser may be cancelled.',
@@ -249,7 +250,7 @@ class LegalContent {
     LegalSection(
       heading: 'Reporting and moderation',
       paragraphs: [
-        'YIYO provides tools for users to report objectionable community content.',
+        'YIYO provides tools for users to report objectionable community content or events and to block contributors or event organisers whose content they no longer want to see.',
         'YIYO may review, restrict, hide, reject or remove content where reasonably necessary to enforce these Terms, respond to reports, comply with law or protect users and the service.',
         'Automated thresholds may temporarily hide heavily reported content or otherwise treat it as a moderation concern.',
         'YIYO may restrict or suspend account features where an account repeatedly or seriously violates these Terms.',

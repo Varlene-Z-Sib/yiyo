@@ -17,6 +17,7 @@ import '../models/event_approval.dart';
 import '../models/admin_user_access.dart';
 import '../models/venue_lookup_option.dart';
 import '../models/profile_access_summary.dart';
+import '../models/moderation_queue.dart';
 
 class ApiException implements Exception {
   final int statusCode;
@@ -376,6 +377,8 @@ static Future<List<VenueLookupOption>>
     final response =
         await http.get(
       uri,
+      headers:
+          await _authHeaders(),
     );
 
     if (response.statusCode != 200) {
@@ -480,6 +483,45 @@ static Future<List<VenueLookupOption>>
       response.body,
     ) as Map<String, dynamic>;
   }
+
+static Future<Map<String, dynamic>>
+    blockReportContributor({
+  required String reportId,
+}) async {
+  final safeId =
+      Uri.encodeComponent(
+    reportId,
+  );
+
+  final uri = Uri.parse(
+    "$baseUrl/reports/"
+    "$safeId/block-contributor",
+  );
+
+  final response =
+      await http.post(
+    uri,
+    headers:
+        await _authHeaders(),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't block this contributor.",
+      ),
+    );
+  }
+
+  return jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+}
 
 static Future<void>
     deleteMyAccount() async {
@@ -790,6 +832,8 @@ static Future<ProfileAccessSummary>
     final response =
         await http.get(
       uri,
+      headers:
+          await _authHeaders(),
     );
 
     if (response.statusCode != 200) {
@@ -842,6 +886,8 @@ static Future<ProfileAccessSummary>
     final response =
         await http.get(
       uri,
+      headers:
+          await _authHeaders(),
     );
 
     if (response.statusCode != 200) {
@@ -867,6 +913,95 @@ static Future<ProfileAccessSummary>
     );
   }
 
+static Future<Map<String, dynamic>>
+    reportEvent({
+  required String eventId,
+  required String reason,
+  String details = "",
+}) async {
+  final safeId =
+      Uri.encodeComponent(
+    eventId,
+  );
+
+  final uri = Uri.parse(
+    "$baseUrl/events/"
+    "$safeId/report",
+  );
+
+  final response =
+      await http.post(
+    uri,
+    headers:
+        await _authHeaders(),
+    body:
+        jsonEncode(
+      {
+        "reason":
+            reason,
+        "details":
+            details.trim(),
+      },
+    ),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't report this event.",
+      ),
+    );
+  }
+
+  return jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+}
+
+
+static Future<Map<String, dynamic>>
+    blockEventOrganizer({
+  required String eventId,
+}) async {
+  final safeId =
+      Uri.encodeComponent(
+    eventId,
+  );
+
+  final uri = Uri.parse(
+    "$baseUrl/events/"
+    "$safeId/block-organizer",
+  );
+
+  final response =
+      await http.post(
+    uri,
+    headers:
+        await _authHeaders(),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't block this organiser.",
+      ),
+    );
+  }
+
+  return jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+}
 
   static Future<EventEngagement>
       getEventEngagement(
@@ -1499,6 +1634,145 @@ static Future<List<YiyoEvent>>
       data,
     );
   }
+
+static Future<ModerationQueue>
+    getModerationQueue() async {
+  final uri = Uri.parse(
+    "$baseUrl/admin/moderation",
+  );
+
+  final response =
+      await http.get(
+    uri,
+    headers:
+        await _authHeaders(),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't load moderation queue.",
+      ),
+    );
+  }
+
+  final data =
+      jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+
+  return ModerationQueue.fromJson(
+    data,
+  );
+}
+
+
+static Future<Map<String, dynamic>>
+    resolveCommunityModeration({
+  required String reportId,
+  required String decision,
+  String note = "",
+}) async {
+  final safeId =
+      Uri.encodeComponent(
+    reportId,
+  );
+
+  final uri = Uri.parse(
+    "$baseUrl/admin/moderation/"
+    "community/$safeId/resolve",
+  );
+
+  final response =
+      await http.post(
+    uri,
+    headers:
+        await _authHeaders(),
+    body:
+        jsonEncode(
+      {
+        "decision":
+            decision,
+        "note":
+            note.trim(),
+      },
+    ),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't resolve this report.",
+      ),
+    );
+  }
+
+  return jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+}
+
+
+static Future<Map<String, dynamic>>
+    resolveEventModeration({
+  required String eventId,
+  required String decision,
+  String note = "",
+}) async {
+  final safeId =
+      Uri.encodeComponent(
+    eventId,
+  );
+
+  final uri = Uri.parse(
+    "$baseUrl/admin/moderation/"
+    "events/$safeId/resolve",
+  );
+
+  final response =
+      await http.post(
+    uri,
+    headers:
+        await _authHeaders(),
+    body:
+        jsonEncode(
+      {
+        "decision":
+            decision,
+        "note":
+            note.trim(),
+      },
+    ),
+  );
+
+  if (response.statusCode != 200) {
+    throw ApiException(
+      statusCode:
+          response.statusCode,
+      message:
+          _errorMessage(
+        response,
+        fallback:
+            "Couldn't resolve this event report.",
+      ),
+    );
+  }
+
+  return jsonDecode(
+    response.body,
+  ) as Map<String, dynamic>;
+}
+
   static Future<AdminUserAccess>
     getAdminUserByUsername(
   String username,
