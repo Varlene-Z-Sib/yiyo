@@ -4,45 +4,34 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../services/auth_service.dart';
 import 'legal_document_screen.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({
-    super.key,
-  });
+  const AuthScreen({super.key});
 
   @override
-  State<AuthScreen> createState() =>
-      _AuthScreenState();
+  State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState
-    extends State<AuthScreen> {
+class _AuthScreenState extends State<AuthScreen> {
   bool _isLogin = true;
   bool _isLoading = false;
   bool _passwordVisible = false;
   bool _isSendingReset = false;
   bool _isGoogleLoading = false;
+  bool _isAppleLoading = false;
 
-  final TextEditingController
-      _emailController =
-      TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
 
-  final TextEditingController
-      _passwordController =
-      TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
-  final TextEditingController
-      _usernameController =
-      TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
 
-  final FocusNode _usernameFocus =
-      FocusNode();
+  final FocusNode _usernameFocus = FocusNode();
 
-  final FocusNode _emailFocus =
-      FocusNode();
+  final FocusNode _emailFocus = FocusNode();
 
-  final FocusNode _passwordFocus =
-      FocusNode();
+  final FocusNode _passwordFocus = FocusNode();
 
   @override
   void dispose() {
@@ -62,47 +51,24 @@ class _AuthScreenState
   }
 
   Future<void> _openPrivacyPolicy() async {
-    await Navigator.of(
-      context,
-    ).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            const LegalDocumentScreen
-                .privacy(),
-      ),
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const LegalDocumentScreen.privacy()),
     );
   }
 
   Future<void> _openTerms() async {
-    await Navigator.of(
-      context,
-    ).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            const LegalDocumentScreen
-                .terms(),
-      ),
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const LegalDocumentScreen.terms()),
     );
   }
 
-  void _showMessage(
-    String message,
-  ) {
+  void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(
-      SnackBar(
-        content:
-            Text(
-          message,
-        ),
-      ),
-    );
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String _friendlyAuthMessage(
-    Object error,
-  ) {
+  String _friendlyAuthMessage(Object error) {
     if (error is FirebaseAuthException) {
       switch (error.code) {
         case 'invalid-email':
@@ -115,6 +81,13 @@ class _AuthScreenState
 
         case 'email-already-in-use':
           return 'An account already uses this email.';
+
+        case 'account-exists-with-different-credential':
+          return 'An account already exists with this email. '
+              'Sign in using the method you originally used.';
+
+        case 'operation-not-allowed':
+          return 'This sign-in method is not available right now.';
 
         case 'weak-password':
           return 'Use at least 8 characters '
@@ -132,12 +105,9 @@ class _AuthScreenState
           return 'This account is currently disabled.';
 
         default:
-          final message =
-              error.message?.trim();
+          final message = error.message?.trim();
 
-          if (
-              message != null &&
-              message.isNotEmpty) {
+          if (message != null && message.isNotEmpty) {
             return message;
           }
       }
@@ -146,70 +116,45 @@ class _AuthScreenState
     return _isLogin
         ? "Couldn't sign you in. Try again."
         : "Couldn't create your account. "
-            "Try again.";
+              "Try again.";
   }
 
-  bool get _passwordHasMinLength =>
-      _passwordController.text.length >= 8;
+  bool get _passwordHasMinLength => _passwordController.text.length >= 8;
 
   bool get _passwordHasLetter =>
-      RegExp(
-        r'[A-Za-z]',
-      ).hasMatch(
-        _passwordController.text,
-      );
+      RegExp(r'[A-Za-z]').hasMatch(_passwordController.text);
 
   bool get _passwordHasNumber =>
-      RegExp(
-        r'[0-9]',
-      ).hasMatch(
-        _passwordController.text,
-      );
+      RegExp(r'[0-9]').hasMatch(_passwordController.text);
 
   bool get _passwordIsValid =>
-      _passwordHasMinLength &&
-      _passwordHasLetter &&
-      _passwordHasNumber;
+      _passwordHasMinLength && _passwordHasLetter && _passwordHasNumber;
 
-  Widget _buildPasswordRequirement({
-    required String label,
-    required bool met,
-  }) {
+  bool get _showAppleSignIn =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  Widget _buildPasswordRequirement({required String label, required bool met}) {
     return Row(
       children: [
         Icon(
-          met
-              ? Icons.check_circle
-              : Icons.circle_outlined,
+          met ? Icons.check_circle : Icons.circle_outlined,
 
           size: 16,
 
-          color:
-              met
-                  ? Colors.green
-                  : Colors.grey[500],
+          color: met ? Colors.green : Colors.grey[500],
         ),
 
-        const SizedBox(
-          width: 7,
-        ),
+        const SizedBox(width: 7),
 
         Text(
           label,
 
-          style:
-              TextStyle(
+          style: TextStyle(
             fontSize: 12,
 
-            color:
-                met
-                    ? Colors.green[700]
-                    : Colors.grey[600],
+            color: met ? Colors.green[700] : Colors.grey[600],
 
-            fontWeight:
-                met
-                    ? FontWeight.w700
-                    : FontWeight.w500,
+            fontWeight: met ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
       ],
@@ -218,129 +163,91 @@ class _AuthScreenState
 
   Widget _buildPasswordGuidance() {
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
 
       children: [
         _buildPasswordRequirement(
-          label:
-              'At least 8 characters',
+          label: 'At least 8 characters',
 
-          met:
-              _passwordHasMinLength,
+          met: _passwordHasMinLength,
         ),
 
-        const SizedBox(
-          height: 5,
-        ),
+        const SizedBox(height: 5),
 
         _buildPasswordRequirement(
-          label:
-              'At least 1 letter',
+          label: 'At least 1 letter',
 
-          met:
-              _passwordHasLetter,
+          met: _passwordHasLetter,
         ),
 
-        const SizedBox(
-          height: 5,
-        ),
+        const SizedBox(height: 5),
 
         _buildPasswordRequirement(
-          label:
-              'At least 1 number',
+          label: 'At least 1 number',
 
-          met:
-              _passwordHasNumber,
+          met: _passwordHasNumber,
         ),
       ],
     );
   }
 
   bool _validate() {
-    final email =
-        _emailController.text
-            .trim();
+    final email = _emailController.text.trim();
 
-    final password =
-        _passwordController.text;
+    final password = _passwordController.text;
 
-    final username =
-        _usernameController.text
-            .trim();
+    final username = _usernameController.text.trim();
 
-    if (
-        !_isLogin &&
-        username.isEmpty) {
-      _showMessage(
-        'Choose a username.',
-      );
+    if (!_isLogin && username.isEmpty) {
+      _showMessage('Choose a username.');
 
-      _usernameFocus
-          .requestFocus();
+      _usernameFocus.requestFocus();
 
       return false;
     }
 
-    if (
-        !_isLogin &&
-        username.length < 3) {
+    if (!_isLogin && username.length < 3) {
       _showMessage(
         'Username must be at least '
         '3 characters.',
       );
 
-      _usernameFocus
-          .requestFocus();
+      _usernameFocus.requestFocus();
 
       return false;
     }
 
     if (email.isEmpty) {
-      _showMessage(
-        'Enter your email address.',
-      );
+      _showMessage('Enter your email address.');
 
-      _emailFocus
-          .requestFocus();
+      _emailFocus.requestFocus();
 
       return false;
     }
 
-    if (
-        !email.contains('@') ||
-        !email.contains('.')) {
-      _showMessage(
-        'Enter a valid email address.',
-      );
+    if (!email.contains('@') || !email.contains('.')) {
+      _showMessage('Enter a valid email address.');
 
-      _emailFocus
-          .requestFocus();
+      _emailFocus.requestFocus();
 
       return false;
     }
 
     if (password.isEmpty) {
-      _showMessage(
-        'Enter your password.',
-      );
+      _showMessage('Enter your password.');
 
-      _passwordFocus
-          .requestFocus();
+      _passwordFocus.requestFocus();
 
       return false;
     }
 
-    if (
-        !_isLogin &&
-        !_passwordIsValid) {
+    if (!_isLogin && !_passwordIsValid) {
       _showMessage(
         'Use at least 8 characters '
         'with a letter and a number.',
       );
 
-      _passwordFocus
-          .requestFocus();
+      _passwordFocus.requestFocus();
 
       return false;
     }
@@ -348,66 +255,83 @@ class _AuthScreenState
     return true;
   }
 
-  Future<void>
-      _continueWithGoogle() async {
-    if (
-        _isLoading ||
-        _isGoogleLoading) {
+  Future<void> _continueWithGoogle() async {
+    if (_isLoading || _isGoogleLoading) {
       return;
     }
 
-    FocusScope.of(
-      context,
-    ).unfocus();
+    FocusScope.of(context).unfocus();
 
     setState(() {
-      _isGoogleLoading =
-          true;
+      _isGoogleLoading = true;
     });
 
     try {
-      await AuthService
-          .signInWithGoogle();
-    } on GoogleSignInException catch (
-        error) {
+      await AuthService.signInWithGoogle();
+    } on GoogleSignInException catch (error) {
       if (!mounted) {
         return;
       }
 
-      if (
-          error.code ==
-          GoogleSignInExceptionCode
-              .canceled) {
+      if (error.code == GoogleSignInExceptionCode.canceled) {
         return;
       }
 
-      _showMessage(
-        "Google sign-in couldn't be completed.",
-      );
-    } on FirebaseAuthException catch (
-        error) {
+      _showMessage("Google sign-in couldn't be completed.");
+    } on FirebaseAuthException catch (error) {
       if (!mounted) {
         return;
       }
 
-      _showMessage(
-        _friendlyAuthMessage(
-          error,
-        ),
-      );
+      _showMessage(_friendlyAuthMessage(error));
     } catch (_) {
       if (!mounted) {
         return;
       }
 
-      _showMessage(
-        "Google sign-in couldn't be completed.",
-      );
+      _showMessage("Google sign-in couldn't be completed.");
     } finally {
       if (mounted) {
         setState(() {
-          _isGoogleLoading =
-              false;
+          _isGoogleLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _continueWithApple() async {
+    if (_isLoading || _isGoogleLoading || _isAppleLoading) {
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    setState(() {
+      _isAppleLoading = true;
+    });
+
+    try {
+      await AuthService.signInWithApple();
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      if (error.code == "web-context-cancelled" || error.code == "canceled") {
+        return;
+      }
+
+      _showMessage(_friendlyAuthMessage(error));
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage("Apple sign-in couldn't be completed.");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAppleLoading = false;
         });
       }
     }
@@ -418,49 +342,32 @@ class _AuthScreenState
       return;
     }
 
-    FocusScope.of(
-      context,
-    ).unfocus();
+    FocusScope.of(context).unfocus();
 
     if (!_validate()) {
       return;
     }
 
-    final email =
-        _emailController.text
-            .trim();
+    final email = _emailController.text.trim();
 
-    final password =
-        _passwordController.text;
+    final password = _passwordController.text;
 
-    final username =
-        _usernameController.text
-            .trim();
+    final username = _usernameController.text.trim();
 
     setState(() {
-      _isLoading =
-          true;
+      _isLoading = true;
     });
 
     try {
       if (_isLogin) {
-        await AuthService.signIn(
-          email:
-              email,
-
-          password:
-              password,
-        );
+        await AuthService.signIn(email: email, password: password);
       } else {
         await AuthService.signUp(
-          email:
-              email,
+          email: email,
 
-          password:
-              password,
+          password: password,
 
-          username:
-              username,
+          username: username,
         );
       }
     } catch (error) {
@@ -468,30 +375,22 @@ class _AuthScreenState
         return;
       }
 
-      _showMessage(
-        _friendlyAuthMessage(
-          error,
-        ),
-      );
+      _showMessage(_friendlyAuthMessage(error));
     } finally {
       if (mounted) {
         setState(() {
-          _isLoading =
-              false;
+          _isLoading = false;
         });
       }
     }
   }
 
-  Future<void>
-      _forgotPassword() async {
+  Future<void> _forgotPassword() async {
     if (_isSendingReset) {
       return;
     }
 
-    final email =
-        _emailController.text
-            .trim();
+    final email = _emailController.text.trim();
 
     if (email.isEmpty) {
       _showMessage(
@@ -499,40 +398,27 @@ class _AuthScreenState
         'then tap Forgot password.',
       );
 
-      _emailFocus
-          .requestFocus();
+      _emailFocus.requestFocus();
 
       return;
     }
 
-    if (
-        !email.contains('@') ||
-        !email.contains('.')) {
-      _showMessage(
-        'Enter a valid email address first.',
-      );
+    if (!email.contains('@') || !email.contains('.')) {
+      _showMessage('Enter a valid email address first.');
 
-      _emailFocus
-          .requestFocus();
+      _emailFocus.requestFocus();
 
       return;
     }
 
-    FocusScope.of(
-      context,
-    ).unfocus();
+    FocusScope.of(context).unfocus();
 
     setState(() {
-      _isSendingReset =
-          true;
+      _isSendingReset = true;
     });
 
     try {
-      await AuthService
-          .sendPasswordResetEmail(
-        email:
-            email,
-      );
+      await AuthService.sendPasswordResetEmail(email: email);
 
       if (!mounted) {
         return;
@@ -542,17 +428,12 @@ class _AuthScreenState
         'Password reset email sent. '
         'Check your inbox.',
       );
-    } on FirebaseAuthException catch (
-        error) {
+    } on FirebaseAuthException catch (error) {
       if (!mounted) {
         return;
       }
 
-      _showMessage(
-        _friendlyAuthMessage(
-          error,
-        ),
-      );
+      _showMessage(_friendlyAuthMessage(error));
     } catch (_) {
       if (!mounted) {
         return;
@@ -565,24 +446,19 @@ class _AuthScreenState
     } finally {
       if (mounted) {
         setState(() {
-          _isSendingReset =
-              false;
+          _isSendingReset = false;
         });
       }
     }
   }
 
   void _switchMode() {
-    FocusScope.of(
-      context,
-    ).unfocus();
+    FocusScope.of(context).unfocus();
 
     setState(() {
-      _isLogin =
-          !_isLogin;
+      _isLogin = !_isLogin;
 
-      _passwordVisible =
-          false;
+      _passwordVisible = false;
     });
   }
 
@@ -594,244 +470,140 @@ class _AuthScreenState
     Widget? suffixIcon,
   }) {
     return InputDecoration(
-      labelText:
-          label,
+      labelText: label,
 
-      hintText:
-          hint,
+      hintText: hint,
 
-      prefixText:
-          prefixText,
+      prefixText: prefixText,
 
-      prefixIcon:
-          Icon(
-        icon,
+      prefixIcon: Icon(icon),
+
+      suffixIcon: suffixIcon,
+
+      filled: true,
+
+      fillColor: const Color(0xFFF3F3F3),
+
+      labelStyle: const TextStyle(color: Color(0xFF555555)),
+
+      hintStyle: TextStyle(color: Colors.grey[500]),
+
+      prefixIconColor: const Color(0xFF555555),
+
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+
+        borderSide: BorderSide.none,
       ),
 
-      suffixIcon:
-          suffixIcon,
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
 
-      filled:
-          true,
-
-      fillColor:
-          const Color(
-        0xFFF3F3F3,
+        borderSide: BorderSide.none,
       ),
 
-      labelStyle:
-          const TextStyle(
-        color:
-            Color(
-          0xFF555555,
-        ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+
+        borderSide: const BorderSide(color: Colors.black, width: 1.5),
       ),
 
-      hintStyle:
-          TextStyle(
-        color:
-            Colors.grey[
-          500
-        ],
-      ),
-
-      prefixIconColor:
-          const Color(
-        0xFF555555,
-      ),
-
-      border:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(
-          18,
-        ),
-
-        borderSide:
-            BorderSide.none,
-      ),
-
-      enabledBorder:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(
-          18,
-        ),
-
-        borderSide:
-            BorderSide.none,
-      ),
-
-      focusedBorder:
-          OutlineInputBorder(
-        borderRadius:
-            BorderRadius.circular(
-          18,
-        ),
-
-        borderSide:
-            const BorderSide(
-          color:
-              Colors.black,
-
-          width:
-              1.5,
-        ),
-      ),
-
-      contentPadding:
-          const EdgeInsets.symmetric(
-        horizontal:
-            16,
-
-        vertical:
-            18,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
     );
   }
 
   Widget _buildYiyoMark() {
     return Row(
-      mainAxisSize:
-          MainAxisSize.min,
+      mainAxisSize: MainAxisSize.min,
 
-      crossAxisAlignment:
-          CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.end,
 
       children: [
         const Text(
           'y',
 
-          style:
-              TextStyle(
-            fontSize:
-                58,
+          style: TextStyle(
+            fontSize: 58,
 
-            fontWeight:
-                FontWeight.w900,
+            fontWeight: FontWeight.w900,
 
-            color:
-                Colors.black,
+            color: Colors.black,
 
-            height:
-                1,
+            height: 1,
 
-            letterSpacing:
-                -4,
+            letterSpacing: -4,
           ),
         ),
 
-        const SizedBox(
-          width:
-              4,
-        ),
+        const SizedBox(width: 4),
 
         SizedBox(
-          width:
-              34,
+          width: 34,
 
-          height:
-              54,
+          height: 54,
 
-          child:
-              Column(
-            mainAxisAlignment:
-                MainAxisAlignment.end,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.end,
 
             children: [
               Container(
-                width:
-                    15,
+                width: 15,
 
-                height:
-                    33,
+                height: 33,
 
-                decoration:
-                    const BoxDecoration(
-                  color:
-                      Colors.black,
+                decoration: const BoxDecoration(
+                  color: Colors.black,
 
-                  borderRadius:
-                      BorderRadius.all(
-                    Radius.circular(
-                      10,
-                    ),
-                  ),
+                  borderRadius: BorderRadius.all(Radius.circular(10)),
                 ),
 
-                child:
-                    Center(
-                  child:
-                      Container(
-                    width:
-                        4,
+                child: Center(
+                  child: Container(
+                    width: 4,
 
-                    height:
-                        15,
+                    height: 15,
 
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          Colors.white,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
 
-                      borderRadius:
-                          BorderRadius.circular(
-                        4,
-                      ),
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
               ),
 
-              const SizedBox(
-                height:
-                    4,
-              ),
+              const SizedBox(height: 4),
 
               Container(
-                width:
-                    9,
+                width: 9,
 
-                height:
-                    9,
+                height: 9,
 
-                decoration:
-                    const BoxDecoration(
-                  color:
-                      Colors.black,
+                decoration: const BoxDecoration(
+                  color: Colors.black,
 
-                  shape:
-                      BoxShape.circle,
+                  shape: BoxShape.circle,
                 ),
               ),
             ],
           ),
         ),
 
-        const SizedBox(
-          width:
-              2,
-        ),
+        const SizedBox(width: 2),
 
         const Text(
           'yo',
 
-          style:
-              TextStyle(
-            fontSize:
-                58,
+          style: TextStyle(
+            fontSize: 58,
 
-            fontWeight:
-                FontWeight.w900,
+            fontWeight: FontWeight.w900,
 
-            color:
-                Colors.black,
+            color: Colors.black,
 
-            height:
-                1,
+            height: 1,
 
-            letterSpacing:
-                -4,
+            letterSpacing: -4,
           ),
         ),
       ],
@@ -839,832 +611,581 @@ class _AuthScreenState
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final bottomInset =
-        MediaQuery.of(
-      context,
-    ).viewInsets.bottom;
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    final isBusy = _isLoading || _isGoogleLoading || _isAppleLoading;
 
     return Scaffold(
-      backgroundColor:
-          const Color(
-        0xFFFCFCFA,
-      ),
+      backgroundColor: const Color(0xFFFCFCFA),
 
-      resizeToAvoidBottomInset:
-          true,
+      resizeToAvoidBottomInset: true,
 
-      body:
-          SafeArea(
-        child:
-            SingleChildScrollView(
-          keyboardDismissBehavior:
-              ScrollViewKeyboardDismissBehavior
-                  .onDrag,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
 
-          padding:
-              EdgeInsets.fromLTRB(
-            22,
-            26,
-            22,
-            26 + bottomInset,
-          ),
+          padding: EdgeInsets.fromLTRB(22, 26, 22, 26 + bottomInset),
 
-          child:
-              Center(
-            child:
-                ConstrainedBox(
-              constraints:
-                  const BoxConstraints(
-                maxWidth:
-                    460,
-              ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
 
-              child:
-                  AutofillGroup(
-                child:
-                    Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.stretch,
+              child: AutofillGroup(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
 
                   children: [
-                    const SizedBox(
-                      height:
-                          18,
-                    ),
+                    const SizedBox(height: 18),
 
-                    Center(
-                      child:
-                          _buildYiyoMark(),
-                    ),
+                    Center(child: _buildYiyoMark()),
 
-                    const SizedBox(
-                      height:
-                          18,
-                    ),
+                    const SizedBox(height: 18),
 
                     Text(
                       _isLogin
                           ? 'Know where the vibe is.'
                           : 'Join the nightlife.',
 
-                      textAlign:
-                          TextAlign.center,
+                      textAlign: TextAlign.center,
 
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.black,
+                      style: const TextStyle(
+                        color: Colors.black,
 
-                        fontSize:
-                            24,
+                        fontSize: 24,
 
-                        fontWeight:
-                            FontWeight.w800,
+                        fontWeight: FontWeight.w800,
 
-                        letterSpacing:
-                            -0.7,
+                        letterSpacing: -0.7,
                       ),
                     ),
 
-                    const SizedBox(
-                      height:
-                          8,
-                    ),
+                    const SizedBox(height: 8),
 
                     Text(
                       _isLogin
                           ? "Sign in and see what's happening around you."
                           : 'Create your YIYO account '
-                              'and start exploring.',
+                                'and start exploring.',
 
-                      textAlign:
-                          TextAlign.center,
+                      textAlign: TextAlign.center,
 
-                      style:
-                          TextStyle(
-                        color:
-                            Colors.grey[
-                          600
-                        ],
+                      style: TextStyle(
+                        color: Colors.grey[600],
 
-                        fontSize:
-                            14,
+                        fontSize: 14,
 
-                        height:
-                            1.4,
+                        height: 1.4,
                       ),
                     ),
 
-                    const SizedBox(
-                      height:
-                          34,
-                    ),
+                    const SizedBox(height: 34),
 
+                    // ---------------------------------------------------------
+                    // Google sign-in
+                    // ---------------------------------------------------------
                     SizedBox(
-                      height:
-                          56,
+                      height: 56,
 
-                      child:
-                          OutlinedButton(
-                        onPressed:
-                            _isLoading ||
-                                    _isGoogleLoading
-                                ? null
-                                : _continueWithGoogle,
+                      child: OutlinedButton(
+                        onPressed: isBusy ? null : _continueWithGoogle,
 
-                        style:
-                            OutlinedButton
-                                .styleFrom(
-                          foregroundColor:
-                              Colors.black,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.black,
 
-                          backgroundColor:
-                              Colors.white,
+                          backgroundColor: Colors.white,
 
-                          side:
-                              const BorderSide(
-                            color:
-                                Color(
-                              0xFFD6D6D6,
-                            ),
-                          ),
+                          side: const BorderSide(color: Color(0xFFD6D6D6)),
 
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              18,
-                            ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
                           ),
                         ),
 
-                        child:
-                            _isGoogleLoading
-                                ? const SizedBox(
-                                    width:
-                                        22,
+                        child: _isGoogleLoading
+                            ? const SizedBox(
+                                width: 22,
 
-                                    height:
-                                        22,
+                                height: 22,
 
-                                    child:
-                                        CircularProgressIndicator(
-                                      strokeWidth:
-                                          2.3,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.3,
 
-                                      color:
-                                          Colors.black,
+                                  color: Colors.black,
+                                ),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+
+                                children: [
+                                  Text(
+                                    'G',
+
+                                    style: TextStyle(
+                                      fontSize: 20,
+
+                                      fontWeight: FontWeight.w900,
+
+                                      color: Colors.black,
                                     ),
-                                  )
-                                : const Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.center,
-
-                                    children: [
-                                      Text(
-                                        'G',
-
-                                        style:
-                                            TextStyle(
-                                          fontSize:
-                                              20,
-
-                                          fontWeight:
-                                              FontWeight.w900,
-
-                                          color:
-                                              Colors.black,
-                                        ),
-                                      ),
-
-                                      SizedBox(
-                                        width:
-                                            12,
-                                      ),
-
-                                      Text(
-                                        'Continue with Google',
-
-                                        style:
-                                            TextStyle(
-                                          fontSize:
-                                              15,
-
-                                          fontWeight:
-                                              FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
                                   ),
+
+                                  SizedBox(width: 12),
+
+                                  Text(
+                                    'Continue with Google',
+
+                                    style: TextStyle(
+                                      fontSize: 15,
+
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
 
-                    const SizedBox(
-                      height:
-                          22,
-                    ),
+                    // ---------------------------------------------------------
+                    // Apple sign-in — iOS only
+                    // ---------------------------------------------------------
+                    if (_showAppleSignIn) ...[
+                      const SizedBox(height: 12),
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child:
-                              Divider(
-                            color:
-                                Colors.grey[
-                              300
-                            ],
-                          ),
-                        ),
+                      SizedBox(
+                        height: 56,
 
-                        Padding(
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal:
-                                14,
-                          ),
+                        child: FilledButton(
+                          onPressed: isBusy ? null : _continueWithApple,
 
-                          child:
-                              Text(
-                            'or',
+                          style: FilledButton.styleFrom(
+                            foregroundColor: Colors.white,
 
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.grey[
-                                500
-                              ],
+                            backgroundColor: Colors.black,
 
-                              fontWeight:
-                                  FontWeight.w600,
+                            disabledBackgroundColor: Colors.black54,
+
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
                             ),
                           ),
+
+                          child: _isAppleLoading
+                              ? const SizedBox(
+                                  width: 22,
+
+                                  height: 22,
+
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.3,
+
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+
+                                  children: [
+                                    Icon(Icons.apple, size: 22),
+
+                                    SizedBox(width: 10),
+
+                                    Text(
+                                      'Continue with Apple',
+
+                                      style: TextStyle(
+                                        fontSize: 15,
+
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                         ),
-
-                        Expanded(
-                          child:
-                              Divider(
-                            color:
-                                Colors.grey[
-                              300
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(
-                      height:
-                          22,
-                    ),
-
-                    if (!_isLogin) ...[
-                      TextField(
-                        controller:
-                            _usernameController,
-
-                        focusNode:
-                            _usernameFocus,
-
-                        enabled:
-                            !_isLoading,
-
-                        keyboardType:
-                            TextInputType.text,
-
-                        textInputAction:
-                            TextInputAction.next,
-
-                        textCapitalization:
-                            TextCapitalization.none,
-
-                        autocorrect:
-                            false,
-
-                        enableSuggestions:
-                            false,
-
-                        autofillHints:
-                            const [
-                          AutofillHints.username,
-                        ],
-
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.black,
-                        ),
-
-                        onSubmitted:
-                            (_) {
-                          _emailFocus
-                              .requestFocus();
-                        },
-
-                        decoration:
-                            _inputDecoration(
-                          label:
-                              'Username',
-
-                          hint:
-                              'yourname',
-
-                          prefixText:
-                              '@',
-
-                          icon:
-                              Icons
-                                  .alternate_email,
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height:
-                            14,
                       ),
                     ],
 
-                    TextField(
-                      controller:
-                          _emailController,
+                    const SizedBox(height: 22),
 
-                      focusNode:
-                          _emailFocus,
+                    // ---------------------------------------------------------
+                    // Divider
+                    // ---------------------------------------------------------
+                    Row(
+                      children: [
+                        Expanded(child: Divider(color: Colors.grey[300])),
 
-                      enabled:
-                          !_isLoading,
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
 
-                      keyboardType:
-                          TextInputType
-                              .emailAddress,
+                          child: Text(
+                            'or',
 
-                      textInputAction:
-                          TextInputAction.next,
+                            style: TextStyle(
+                              color: Colors.grey[500],
 
-                      autofillHints:
-                          const [
-                        AutofillHints.email,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+
+                        Expanded(child: Divider(color: Colors.grey[300])),
                       ],
+                    ),
 
-                      autocorrect:
-                          false,
+                    const SizedBox(height: 22),
 
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.black,
+                    // ---------------------------------------------------------
+                    // Username — sign-up only
+                    // ---------------------------------------------------------
+                    if (!_isLogin) ...[
+                      TextField(
+                        controller: _usernameController,
+
+                        focusNode: _usernameFocus,
+
+                        enabled: !isBusy,
+
+                        keyboardType: TextInputType.text,
+
+                        textInputAction: TextInputAction.next,
+
+                        textCapitalization: TextCapitalization.none,
+
+                        autocorrect: false,
+
+                        enableSuggestions: false,
+
+                        autofillHints: const [AutofillHints.username],
+
+                        style: const TextStyle(color: Colors.black),
+
+                        onSubmitted: (_) {
+                          _emailFocus.requestFocus();
+                        },
+
+                        decoration: _inputDecoration(
+                          label: 'Username',
+
+                          hint: 'yourname',
+
+                          prefixText: '@',
+
+                          icon: Icons.alternate_email,
+                        ),
                       ),
 
-                      onSubmitted:
-                          (_) {
-                        _passwordFocus
-                            .requestFocus();
+                      const SizedBox(height: 14),
+                    ],
+
+                    // ---------------------------------------------------------
+                    // Email
+                    // ---------------------------------------------------------
+                    TextField(
+                      controller: _emailController,
+
+                      focusNode: _emailFocus,
+
+                      enabled: !isBusy,
+
+                      keyboardType: TextInputType.emailAddress,
+
+                      textInputAction: TextInputAction.next,
+
+                      autofillHints: const [AutofillHints.email],
+
+                      autocorrect: false,
+
+                      style: const TextStyle(color: Colors.black),
+
+                      onSubmitted: (_) {
+                        _passwordFocus.requestFocus();
                       },
 
-                      decoration:
-                          _inputDecoration(
-                        label:
-                            'Email',
+                      decoration: _inputDecoration(
+                        label: 'Email',
 
-                        hint:
-                            'you@example.com',
+                        hint: 'you@example.com',
 
-                        icon:
-                            Icons
-                                .mail_outline,
+                        icon: Icons.mail_outline,
                       ),
                     ),
 
-                    const SizedBox(
-                      height:
-                          14,
-                    ),
+                    const SizedBox(height: 14),
 
+                    // ---------------------------------------------------------
+                    // Password
+                    // ---------------------------------------------------------
                     TextField(
-                      controller:
-                          _passwordController,
+                      controller: _passwordController,
 
-                      focusNode:
-                          _passwordFocus,
+                      focusNode: _passwordFocus,
 
-                      enabled:
-                          !_isLoading,
+                      enabled: !isBusy,
 
-                      obscureText:
-                          !_passwordVisible,
+                      obscureText: !_passwordVisible,
 
-                      keyboardType:
-                          TextInputType
-                              .visiblePassword,
+                      keyboardType: TextInputType.visiblePassword,
 
-                      textInputAction:
-                          TextInputAction.done,
+                      textInputAction: TextInputAction.done,
 
-                      autofillHints:
-                          _isLogin
-                              ? const [
-                                  AutofillHints
-                                      .password,
-                                ]
-                              : const [
-                                  AutofillHints
-                                      .newPassword,
-                                ],
+                      autofillHints: _isLogin
+                          ? const [AutofillHints.password]
+                          : const [AutofillHints.newPassword],
 
-                      autocorrect:
-                          false,
+                      autocorrect: false,
 
-                      enableSuggestions:
-                          false,
+                      enableSuggestions: false,
 
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.black,
-                      ),
+                      style: const TextStyle(color: Colors.black),
 
-                      onChanged:
-                          (_) {
+                      onChanged: (_) {
                         if (!_isLogin) {
                           setState(() {});
                         }
                       },
 
-                      onSubmitted:
-                          (_) =>
-                              _submit(),
+                      onSubmitted: (_) {
+                        if (!isBusy) {
+                          _submit();
+                        }
+                      },
 
-                      decoration:
-                          _inputDecoration(
-                        label:
-                            'Password',
+                      decoration: _inputDecoration(
+                        label: 'Password',
 
-                        icon:
-                            Icons
-                                .lock_outline,
+                        icon: Icons.lock_outline,
 
-                        suffixIcon:
-                            IconButton(
-                          tooltip:
-                              _passwordVisible
-                                  ? 'Hide password'
-                                  : 'Show password',
+                        suffixIcon: IconButton(
+                          tooltip: _passwordVisible
+                              ? 'Hide password'
+                              : 'Show password',
 
-                          onPressed:
-                              _isLoading
-                                  ? null
-                                  : () {
-                                      setState(() {
-                                        _passwordVisible =
-                                            !_passwordVisible;
-                                      });
-                                    },
+                          onPressed: isBusy
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _passwordVisible = !_passwordVisible;
+                                  });
+                                },
 
-                          icon:
-                              Icon(
+                          icon: Icon(
                             _passwordVisible
-                                ? Icons
-                                    .visibility_off_outlined
-                                : Icons
-                                    .visibility_outlined,
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
 
-                            color:
-                                const Color(
-                              0xFF555555,
-                            ),
+                            color: const Color(0xFF555555),
                           ),
                         ),
                       ),
                     ),
 
+                    // ---------------------------------------------------------
+                    // Sign-up password guidance
+                    // ---------------------------------------------------------
                     if (!_isLogin) ...[
-                      const SizedBox(
-                        height:
-                            10,
-                      ),
+                      const SizedBox(height: 10),
 
                       Padding(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal:
-                              4,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
 
-                        child:
-                            _buildPasswordGuidance(),
+                        child: _buildPasswordGuidance(),
                       ),
 
-                      const SizedBox(
-                        height:
-                            10,
-                      ),
+                      const SizedBox(height: 10),
                     ],
 
+                    // ---------------------------------------------------------
+                    // Forgot password
+                    // ---------------------------------------------------------
                     if (_isLogin) ...[
-                      const SizedBox(
-                        height:
-                            4,
-                      ),
+                      const SizedBox(height: 4),
 
                       Align(
-                        alignment:
-                            Alignment
-                                .centerRight,
+                        alignment: Alignment.centerRight,
 
-                        child:
-                            TextButton(
-                          onPressed:
-                              _isLoading ||
-                                      _isSendingReset
-                                  ? null
-                                  : _forgotPassword,
+                        child: TextButton(
+                          onPressed: isBusy || _isSendingReset
+                              ? null
+                              : _forgotPassword,
 
-                          child:
-                              Text(
-                            _isSendingReset
-                                ? 'Sending...'
-                                : 'Forgot password?',
+                          child: Text(
+                            _isSendingReset ? 'Sending...' : 'Forgot password?',
 
-                            style:
-                                const TextStyle(
-                              color:
-                                  Colors.black,
+                            style: const TextStyle(
+                              color: Colors.black,
 
-                              fontWeight:
-                                  FontWeight.w700,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
                       ),
                     ] else
-                      const SizedBox(
-                        height:
-                            20,
-                      ),
+                      const SizedBox(height: 20),
 
+                    // ---------------------------------------------------------
+                    // Email sign-in / create account
+                    // ---------------------------------------------------------
                     SizedBox(
-                      height:
-                          56,
+                      height: 56,
 
-                      child:
-                          FilledButton(
-                        onPressed:
-                            _isLoading
-                                ? null
-                                : _submit,
+                      child: FilledButton(
+                        onPressed: isBusy ? null : _submit,
 
-                        style:
-                            FilledButton
-                                .styleFrom(
-                          backgroundColor:
-                              Colors.black,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.black,
 
-                          foregroundColor:
-                              Colors.white,
+                          foregroundColor: Colors.white,
 
-                          disabledBackgroundColor:
-                              Colors.black38,
+                          disabledBackgroundColor: Colors.black38,
 
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              18,
-                            ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
                           ),
                         ),
 
-                        child:
-                            _isLoading
-                                ? const SizedBox(
-                                    width:
-                                        22,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 22,
 
-                                    height:
-                                        22,
+                                height: 22,
 
-                                    child:
-                                        CircularProgressIndicator(
-                                      strokeWidth:
-                                          2.5,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
 
-                                      color:
-                                          Colors.white,
-                                    ),
-                                  )
-                                : Text(
-                                    _isLogin
-                                        ? 'Sign in'
-                                        : 'Create account',
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                _isLogin ? 'Sign in' : 'Create account',
 
-                                    style:
-                                        const TextStyle(
-                                      fontSize:
-                                          16,
+                                style: const TextStyle(
+                                  fontSize: 16,
 
-                                      fontWeight:
-                                          FontWeight.w800,
-                                    ),
-                                  ),
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                       ),
                     ),
 
-                    const SizedBox(
-                      height:
-                          22,
-                    ),
+                    const SizedBox(height: 22),
 
+                    // ---------------------------------------------------------
+                    // Login / signup mode divider
+                    // ---------------------------------------------------------
                     Row(
                       children: [
-                        Expanded(
-                          child:
-                              Divider(
-                            color:
-                                Colors.grey[
-                              300
-                            ],
-                          ),
-                        ),
+                        Expanded(child: Divider(color: Colors.grey[300])),
 
                         Padding(
-                          padding:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal:
-                                12,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
 
-                          child:
-                              Text(
-                            _isLogin
-                                ? 'New to YIYO?'
-                                : 'Already on YIYO?',
+                          child: Text(
+                            _isLogin ? 'New to YIYO?' : 'Already on YIYO?',
 
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.grey[
-                                600
-                              ],
+                            style: TextStyle(
+                              color: Colors.grey[600],
 
-                              fontSize:
-                                  13,
+                              fontSize: 13,
                             ),
                           ),
                         ),
 
-                        Expanded(
-                          child:
-                              Divider(
-                            color:
-                                Colors.grey[
-                              300
-                            ],
-                          ),
-                        ),
+                        Expanded(child: Divider(color: Colors.grey[300])),
                       ],
                     ),
 
-                    const SizedBox(
-                      height:
-                          14,
-                    ),
+                    const SizedBox(height: 14),
 
+                    // ---------------------------------------------------------
+                    // Switch login / signup mode
+                    // ---------------------------------------------------------
                     SizedBox(
-                      height:
-                          52,
+                      height: 52,
 
-                      child:
-                          OutlinedButton(
-                        onPressed:
-                            _isLoading
-                                ? null
-                                : _switchMode,
+                      child: OutlinedButton(
+                        onPressed: isBusy ? null : _switchMode,
 
-                        style:
-                            OutlinedButton
-                                .styleFrom(
-                          foregroundColor:
-                              Colors.black,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.black,
 
-                          side:
-                              const BorderSide(
-                            color:
-                                Color(
-                              0xFFD6D6D6,
-                            ),
-                          ),
+                          side: const BorderSide(color: Color(0xFFD6D6D6)),
 
-                          shape:
-                              RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              18,
-                            ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
                           ),
                         ),
 
-                        child:
-                            Text(
-                          _isLogin
-                              ? 'Create an account'
-                              : 'Sign in instead',
+                        child: Text(
+                          _isLogin ? 'Create an account' : 'Sign in instead',
 
-                          style:
-                              const TextStyle(
-                            fontWeight:
-                                FontWeight.w700,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),
 
-                    const SizedBox(
-                      height:
-                          18,
-                    ),
+                    const SizedBox(height: 18),
 
+                    // ---------------------------------------------------------
+                    // Legal links
+                    // ---------------------------------------------------------
                     Wrap(
-                      alignment:
-                          WrapAlignment.center,
-                      spacing:
-                          2,
+                      alignment: WrapAlignment.center,
+
+                      spacing: 2,
+
                       children: [
                         TextButton(
-                          onPressed:
-                              _openPrivacyPolicy,
-                          child:
-                              const Text(
+                          onPressed: isBusy ? null : _openPrivacyPolicy,
+
+                          child: const Text(
                             'Privacy Policy',
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.black87,
-                              fontSize:
-                                  12,
-                              fontWeight:
-                                  FontWeight.w700,
+
+                            style: TextStyle(
+                              color: Colors.black87,
+
+                              fontSize: 12,
+
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
+
                         TextButton(
-                          onPressed:
-                              _openTerms,
-                          child:
-                              const Text(
+                          onPressed: isBusy ? null : _openTerms,
+
+                          child: const Text(
                             'Terms & Community Guidelines',
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.black87,
-                              fontSize:
-                                  12,
-                              fontWeight:
-                                  FontWeight.w700,
+
+                            style: TextStyle(
+                              color: Colors.black87,
+
+                              fontSize: 12,
+
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
                       ],
                     ),
 
-                    const SizedBox(
-                      height:
-                          2,
-                    ),
+                    const SizedBox(height: 2),
 
                     Text(
                       'Real people. Real places. '
                       'Know the vibe before you go.',
 
-                      textAlign:
-                          TextAlign.center,
+                      textAlign: TextAlign.center,
 
-                      style:
-                          TextStyle(
-                        color:
-                            Colors.grey[
-                          500
-                        ],
+                      style: TextStyle(
+                        color: Colors.grey[500],
 
-                        fontSize:
-                            12,
+                        fontSize: 12,
 
-                        height:
-                            1.4,
+                        height: 1.4,
                       ),
                     ),
 
-                    const SizedBox(
-                      height:
-                          10,
-                    ),
+                    const SizedBox(height: 10),
                   ],
                 ),
               ),
